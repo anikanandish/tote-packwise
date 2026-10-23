@@ -1,0 +1,764 @@
+<title>PackWise Simulator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one long working page — a measuring bench. Hero verdict, then four numbered stations
+   that follow the algorithm's real order: basket → width search → placement → with vs without. */
+:root{
+  --ink:#292334;        /* inkberry */
+  --peach:#FFBEA3;
+  --paper:#FFF7F2;      /* peach-ivory */
+  --lav:#A99ACB;
+  --text:#302A35;
+  --bg:var(--paper);
+  --fg:var(--text);
+  --muted:#6E6577;
+  --line:#E7DCD6;
+  --panel:#FFFFFF;
+  --panel-2:#FBEFE8;
+  --accent:#E8896A;     /* peach deepened so it reads on light paper */
+  --accent-ink:#292334;
+  --lav-ink:#5F4F8C;
+  --good:#2F7A57; --bad:#B4433A;
+  --carton:#C9A27E; --carton-edge:#8D6A4C;
+  --grid:rgba(41,35,52,.08);
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#1D1825;--fg:#F3EAF0;--muted:#A99FB3;--line:#3A3247;--panel:#292334;--panel-2:#322A40;
+  --accent:#FFBEA3;--accent-ink:#292334;--lav-ink:#C7BBE6;--good:#7FD1A6;--bad:#FF9A8E;
+  --carton:#8D6A4C;--carton-edge:#D2B08C;--grid:rgba(255,247,242,.07);color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#1D1825;--fg:#F3EAF0;--muted:#A99FB3;--line:#3A3247;--panel:#292334;--panel-2:#322A40;
+  --accent:#FFBEA3;--accent-ink:#292334;--lav-ink:#C7BBE6;--good:#7FD1A6;--bad:#FF9A8E;
+  --carton:#8D6A4C;--carton-edge:#D2B08C;--grid:rgba(255,247,242,.07);color-scheme:dark}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font:400 15px/1.55 var(--f-body);margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+.mono,.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--lav);outline-offset:2px}
+
+/* top bar */
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:18px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font:800 17px/1 var(--f-display);font-stretch:112%;letter-spacing:.01em}
+.brand svg{color:var(--accent)}
+.src{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.dot.live{background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 25%,transparent)}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 12px;cursor:pointer;font-weight:600;font-size:13px}
+.btn:hover{border-color:var(--lav)}
+.btn.primary{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+:root[data-theme="dark"] .btn.primary{background:var(--peach);color:var(--ink);border-color:var(--peach)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .btn.primary{background:var(--peach);color:var(--ink);border-color:var(--peach)}}
+.btn[aria-pressed="true"]{background:var(--lav);color:#241E2E;border-color:var(--lav)}
+
+/* hero */
+.hero{padding-block:28px 34px;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:36px;align-items:center}
+.eyebrow{font:600 12px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--lav-ink)}
+.hero h1{font-size:clamp(32px,5.2vw,62px);line-height:.98;font-weight:850;font-stretch:118%;letter-spacing:-.015em;margin-top:14px}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero p.lede{max-width:56ch;color:var(--muted);font-size:16px;margin:16px 0 0}
+.verdict{background:var(--ink);color:var(--paper);border-radius:14px;padding:22px;display:grid;gap:14px}
+.verdict .vh{font:600 11px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--lav)}
+.verdict .big{font:850 44px/1 var(--f-display);font-stretch:115%;color:var(--peach)}
+.verdict .row{display:flex;justify-content:space-between;gap:12px;font-size:14px;border-top:1px solid rgba(255,247,242,.12);padding-top:10px}
+.verdict .row span:last-child{font-family:var(--f-mono);font-variant-numeric:tabular-nums;text-align:right}
+
+/* stations */
+.station{border-top:1px solid var(--line);padding-block:34px}
+.st-head{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 18px;align-items:baseline;margin-bottom:20px}
+.st-no{font:700 13px/1 var(--f-mono);color:var(--accent);grid-row:span 2;padding-top:6px}
+.st-head h2{font-size:clamp(22px,2.8vw,30px);font-weight:800;font-stretch:108%}
+.st-head p{margin:0;color:var(--muted);max-width:70ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;min-width:0}
+
+/* basket */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.bgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:16px}
+.olist{display:grid;gap:8px;max-height:430px;overflow:auto;padding-right:4px}
+.ocard{text-align:left;border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:11px 13px;cursor:pointer;display:grid;gap:4px}
+.ocard:hover{border-color:var(--lav)}
+.ocard.on{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.ocard b{font-weight:700}
+.ocard small{color:var(--muted)}
+.tag{display:inline-block;font:600 10.5px/1 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;padding:4px 6px;border-radius:4px;background:var(--panel-2);color:var(--lav-ink)}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;max-height:430px;overflow:auto;padding-right:4px}
+.pcard{border:1px solid var(--line);border-radius:10px;padding:9px 10px;display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:8px;align-items:center}
+.sw{width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.15)}
+.pcard .nm{font-size:13px;font-weight:600;line-height:1.25}
+.pcard .dm{font:400 11px/1.3 var(--f-mono);color:var(--muted)}
+.qty{display:flex;align-items:center;gap:4px}
+.qty button{width:26px;height:26px;border-radius:6px;border:1px solid var(--line);background:var(--panel-2);cursor:pointer;font-weight:700;line-height:1}
+.qty span{min-width:18px;text-align:center;font-family:var(--f-mono)}
+.cat{grid-column:1/-1;font:600 11px/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:8px 2px 2px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 11px/1.2 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+td.n,th.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tscroll{overflow-x:auto}
+.note{font-size:13px;color:var(--muted)}
+
+/* sweep */
+.sgrid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px}
+svg text{fill:var(--muted);font-family:var(--f-mono);font-size:10px}
+.ctrl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+input[type=range]{flex:1;min-width:140px;accent-color:var(--accent)}
+.readout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px;margin-top:12px}
+.readout div{display:grid;gap:2px}
+.readout dt{font:600 10.5px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.readout dd{margin:0;font:600 15px/1.3 var(--f-mono);font-variant-numeric:tabular-nums}
+.pill{display:inline-block;padding:3px 8px;border-radius:999px;font:600 11px/1.3 var(--f-mono)}
+.pill.best{background:var(--accent);color:var(--accent-ink)}
+.pill.meh{background:var(--panel-2);color:var(--muted)}
+
+/* replay */
+.rgrid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px}
+.stage{position:relative;min-height:340px;display:grid;place-items:center}
+.stage canvas{width:100%;height:380px;display:block;cursor:grab;border-radius:8px}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-height:420px;overflow:auto}
+.steps li{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;padding:8px 10px;border-radius:8px;border:1px solid transparent;font-size:13.5px;color:var(--muted)}
+.steps li.done{color:var(--fg)}
+.steps li.cur{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--panel));color:var(--fg)}
+.steps li b{font-weight:700}
+.steps .k{font:700 12px/1.5 var(--f-mono);color:var(--accent)}
+
+/* compare */
+.cgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.ccard{display:grid;gap:10px;align-content:start}
+.ccard h3{font-size:16px;font-weight:750}
+.ccard.win{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.savings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:16px}
+.save{display:grid;gap:6px}
+.save .v{font:850 30px/1 var(--f-display);font-stretch:112%}
+.save .v.up{color:var(--good)} .save .v.down{color:var(--bad)}
+.save ul{margin:0;padding-left:18px;font-size:13.5px;display:grid;gap:2px}
+.assume{margin-top:16px;font-size:13px;color:var(--muted)}
+.assume li{margin:2px 0}
+footer{border-top:1px solid var(--line);padding-block:26px 40px;color:var(--muted);font-size:13px;display:grid;gap:10px}
+footer code{font-family:var(--f-mono);font-size:12px;background:var(--panel-2);padding:1px 5px;border-radius:4px}
+
+@media (max-width:560px){#unitsTable th:nth-child(2),#unitsTable td:nth-child(2){display:none}}
+@media (max-width:860px){
+  .hero,.bgrid,.sgrid,.rgrid{grid-template-columns:minmax(0,1fr)}
+  .cgrid{grid-template-columns:minmax(0,1fr)}
+  .savings{grid-template-columns:minmax(0,1fr)}
+  .stage canvas{height:300px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="bar">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" width="24" height="24" aria-hidden="true"><path d="M5 11 16 5.5 27 11v11L16 27.5 5 22z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M5 11l11 5.5L27 11M16 16.5v11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg>
+      PackWise Simulator
+    </div>
+    <div class="src">
+      <span class="dot" id="srcDot"></span><span id="srcText">Loading store data…</span>
+      <button class="btn" id="retry" type="button" hidden>Connect to store</button>
+    </div>
+  </header>
+
+  <section class="hero" aria-labelledby="heroTitle">
+    <div>
+      <p class="eyebrow">packer.cpp · running in your browser</p>
+      <h1 id="heroTitle">Stop shipping <em>air.</em></h1>
+      <p class="lede">Pick a real TOTE order. The page runs the same packing algorithm the warehouse uses, shows every width it tries, places each item one by one, and measures the result against packing without it.</p>
+    </div>
+    <div class="verdict" aria-live="polite">
+      <span class="vh" id="vLabel">This basket</span>
+      <span class="big num" id="vBig">—</span>
+      <div class="row"><span>Box the algorithm designs</span><span id="vBox">—</span></div>
+      <div class="row"><span>Smallest stock carton</span><span id="vStock">—</span></div>
+      <div class="row"><span>One straight row</span><span id="vRow">—</span></div>
+    </div>
+  </section>
+
+  <section class="station" id="basket" aria-labelledby="h1b">
+    <div class="st-head"><span class="st-no">01</span><h2 id="h1b">Choose a basket</h2>
+      <p>Store orders come from the TOTE database when the backend is running. Every item is measured with its protective padding, the way the packer sees it.</p></div>
+    <div class="tabs" role="tablist">
+      <button class="btn" role="tab" id="tabOrders" aria-pressed="true" type="button">Store orders</button>
+      <button class="btn" role="tab" id="tabSamples" aria-pressed="false" type="button">Sample baskets</button>
+      <button class="btn" role="tab" id="tabBuild" aria-pressed="false" type="button">Build your own</button>
+    </div>
+    <div class="bgrid">
+      <div class="panel" id="pickPanel"></div>
+      <div class="panel">
+        <h3 style="font-size:15px;margin-bottom:8px" id="unitsTitle">Items as the packer sees them</h3>
+        <div class="tscroll"><table id="unitsTable"></table></div>
+        <p class="note" id="unitsNote"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="station" id="search" aria-labelledby="h2b">
+    <div class="st-head"><span class="st-no">02</span><h2 id="h2b">The width search</h2>
+      <p id="sweepIntro">The algorithm tries 200 row widths. For each width it lays the items out in rows and scores the box: volume plus a small penalty on the longest side. The lowest score wins.</p></div>
+    <div class="sgrid">
+      <div class="panel">
+        <svg id="sweepSvg" viewBox="0 0 640 300" width="100%" role="img" aria-label="Box volume for each trial width"></svg>
+        <div class="ctrl">
+          <button class="btn primary" id="sweepPlay" type="button">Run the search</button>
+          <input type="range" id="sweepRange" min="0" max="199" value="0" aria-label="Trial">
+          <button class="btn" id="sweepBest" type="button">Jump to winner</button>
+        </div>
+      </div>
+      <div class="panel">
+        <svg id="trialFloor" viewBox="0 0 400 300" width="100%" role="img" aria-label="Layout for the selected width"></svg>
+        <dl class="readout" id="trialRead"></dl>
+      </div>
+    </div>
+  </section>
+
+  <section class="station" id="place" aria-labelledby="h3b">
+    <div class="st-head"><span class="st-no">03</span><h2 id="h3b">Placement, step by step</h2>
+      <p>The winning layout, in the order the algorithm places items: longest side first, left to right along a row, a new row when the next item would run past the width. Items stay upright and only turn 90° on the floor.</p></div>
+    <div class="rgrid">
+      <div class="panel">
+        <div class="ctrl" style="margin-top:0;margin-bottom:10px">
+          <button class="btn" id="vTop" aria-pressed="true" type="button">Top view</button>
+          <button class="btn" id="v3d" aria-pressed="false" type="button">3D</button>
+          <span style="flex:1"></span>
+          <button class="btn" id="stPrev" type="button" aria-label="Previous step">‹ Back</button>
+          <button class="btn primary" id="stPlay" type="button">Play</button>
+          <button class="btn" id="stNext" type="button" aria-label="Next step">Next ›</button>
+        </div>
+        <div class="stage">
+          <svg id="placeSvg" viewBox="0 0 560 380" width="100%" role="img" aria-label="Top view of the box"></svg>
+          <canvas id="placeCanvas" hidden aria-label="3D view of the box; drag to turn"></canvas>
+        </div>
+        <p class="note" id="placeNote"></p>
+      </div>
+      <div class="panel"><ol class="steps" id="stepList"></ol></div>
+    </div>
+  </section>
+
+  <section class="station" id="compare" aria-labelledby="h4b">
+    <div class="st-head"><span class="st-no">04</span><h2 id="h4b">With the algorithm vs without</h2>
+      <p>Same items, same padding, same pricing rules. Drawn to the same scale so the empty space is directly comparable.</p></div>
+    <div class="cgrid" id="cgrid"></div>
+    <div class="panel" style="margin-top:16px"><div class="tscroll"><table id="ctable"></table></div></div>
+    <div class="savings" id="savings"></div>
+    <ul class="assume" id="assume"></ul>
+  </section>
+
+  <footer>
+    <div><b style="color:var(--fg)">How this page works.</b> The functions <code>pack()</code> and the 200-width search from <code>packer.cpp</code> are ported line for line to JavaScript (search for <code>PACKER-START</code> in this page's source). An automated test runs the compiled C++ program and this JavaScript on the same random baskets and requires identical boxes and coordinates.</div>
+    <div>Store data: <span id="footSrc">—</span>. The site only reads products, cartons, packing rules and the items in recent orders — never customer names or addresses.</div>
+    <div>Limits of the algorithm, shown as they are: one layer, items never stacked or tipped, the tallest item sets the box height.</div>
+  </footer>
+</div>
+
+<script type="application/json" id="builtinData">__BUILTIN_DATA__</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/*PACKER-START*/
+// Line-for-line port of packer.cpp. All sizes are integer millimetres.
+function pack(items, targetW) {
+  const r = { W: 0, L: 0, H: 0, score: Infinity, p: new Array(items.length) };
+  let x = 0, y = 0, rowH = 0, usedW = 0, usedL = 0, maxBoxH = 0;
+  for (const it of items) {
+    let l = it.l, w = it.w, rot = false;
+    if (l > targetW && w <= targetW) { [l, w] = [w, l]; rot = true; }
+    if (l > targetW) return r;
+    if (x > 0) {
+      const normalFits = x + l <= targetW;
+      const rotatedFits = x + w <= targetW && w <= targetW;
+      if (!normalFits && rotatedFits) { [l, w] = [w, l]; rot = !rot; }
+      else if (normalFits && rotatedFits && w < l && x + l > Math.floor(targetW * 3 / 4)) { [l, w] = [w, l]; rot = !rot; }
+    }
+    if (x > 0 && x + l > targetW) { y += rowH; x = 0; rowH = 0; }
+    if (l > targetW) return r;
+    r.p[it.id] = { x, y, z: 0, l, w, h: it.h, rotated: rot };
+    x += l;
+    rowH = Math.max(rowH, w);
+    usedW = Math.max(usedW, x);
+    usedL = Math.max(usedL, y + rowH);
+    maxBoxH = Math.max(maxBoxH, it.h);
+  }
+  r.W = usedW; r.L = usedL; r.H = maxBoxH;
+  const maxDim = Math.max(usedW, usedL, maxBoxH);
+  r.score = usedW * usedL * maxBoxH + 0.025 * maxDim * maxDim;
+  return r;
+}
+function isqrt(a) { let s = Math.floor(Math.sqrt(a)); while (s * s > a) s--; while ((s + 1) * (s + 1) <= a) s++; return s; }
+// main(): stable sort by longest floor side, then sweep 200 widths between lo and hi. Every trial is kept.
+function designTrace(raw) {
+  const items = raw.map((it, i) => ({ l: it.l, w: it.w, h: it.h, id: i }));
+  let area = 0, maxSide = 0, total = 0;
+  for (const it of items) { area += it.l * it.w; maxSide = Math.max(maxSide, Math.min(it.l, it.w)); }
+  items.sort((a, b) => Math.max(b.l, b.w) - Math.max(a.l, a.w)); // Array.sort is stable (ES2019)
+  for (const it of items) total += Math.min(it.l, it.w);
+  const lo = Math.max(maxSide, isqrt(area));
+  const hi = Math.max(lo, total);
+  const trials = [];
+  let best = -1, bestScore = Infinity;
+  for (let k = 0; k < 200; ++k) {
+    const width = lo + Math.floor((hi - lo) * k / 199);
+    const result = pack(items, width);
+    trials.push({ k, width, fits: isFinite(result.score), result });
+    if (result.score < bestScore) { bestScore = result.score; best = k; }
+  }
+  return { lo, hi, trials, best, order: items.map(it => it.id) };
+}
+// Fixed carton (PackWise extension, same as fitCarton() in packer_core.cpp): for each floor
+// orientation, run the original width search with widths up to the carton side and keep the
+// lowest-scoring layout that fits the floor and height. pack() is unchanged.
+function fitCarton(raw, L, W, H) {
+  const items = raw.map((it, i) => ({ l: it.l, w: it.w, h: it.h, id: i }));
+  items.sort((a, b) => Math.max(b.l, b.w) - Math.max(a.l, a.w));
+  let area = 0, maxSide = 0;
+  for (const it of items) { area += it.l * it.w; maxSide = Math.max(maxSide, Math.min(it.l, it.w)); }
+  const attempt = (name, targetW, rowLimit) => {
+    const lo = Math.min(Math.max(maxSide, isqrt(area)), targetW), hi = targetW;
+    let best = null, fitsCount = 0;
+    for (let k = 0; k < 200; ++k) {
+      const width = lo + Math.floor((hi - lo) * k / 199);
+      const r = pack(items, width);
+      if (!isFinite(r.score) || r.W > targetW || r.L > rowLimit || r.H > H) continue;
+      fitsCount++;
+      if (!best || r.score < best.score) best = r;
+    }
+    return { name, targetW, rowLimit, result: best || pack(items, targetW), fits: !!best, fitsCount };
+  };
+  const attempts = [attempt("rows_along_length", L, W), attempt("rows_along_width", W, L)];
+  let chosen = -1, bestScore = Infinity;
+  attempts.forEach((a, i) => { if (a.fits && a.result.score < bestScore) { bestScore = a.result.score; chosen = i; } });
+  return { fits: chosen >= 0, chosen, attempts, order: items.map(it => it.id) };
+}
+/*PACKER-END*/
+</script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const BUILTIN = JSON.parse($("builtinData").textContent);
+const API = (() => { try { return new URLSearchParams(location.search).get("api") || "http://localhost:8000"; } catch { return "http://localhost:8000"; } })();
+const S = { data: null, live: false, tab: "orders", basketKey: null, custom: {}, res: null, trial: 0, step: 0, view: "top", timers: {} };
+
+const cm = mm => Math.round(mm) / 10;
+const f1 = v => (Math.round(v * 10) / 10).toLocaleString("en-IN", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const f0 = v => Math.round(v).toLocaleString("en-IN");
+const inr = v => "₹" + (Math.round(v * 100) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pct = v => Math.round(v * 100) + "%";
+const dims = a => a.map(f1).join(" × ") + " cm";
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const mmUp = v => Math.ceil(Number((v * 10).toFixed(4)));
+const mmDown = v => Math.floor(Number((v * 10).toFixed(4)));
+function inkOn(hex) { const h = (hex || "#999").replace("#", ""); const n = parseInt(h.length === 3 ? h.split("").map(c => c + c).join("") : h, 16); const r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255; return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? "#241E2E" : "#FFF7F2"; }
+const toneOf = p => (p.art && p.art.tone) || "#A99ACB";
+
+/* ---------- data ---------- */
+async function loadData() {
+  setSource("Connecting to the TOTE store…", false);
+  try {
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 2500);
+    const r = await fetch(API + "/api/public/sim-data", { signal: ctl.signal });
+    clearTimeout(t);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    S.data = await r.json(); S.live = true;
+    setSource(`Live from the TOTE store · ${S.data.orders.length} order${S.data.orders.length === 1 ? "" : "s"}`, true);
+  } catch {
+    S.data = BUILTIN; S.live = false;
+    setSource("Store offline · using the built-in TOTE catalogue", false);
+  }
+  $("retry").hidden = S.live;
+  $("footSrc").textContent = S.live ? `live from ${API}/api/public/sim-data` : "built-in copy of the TOTE catalogue (start the backend to use live orders)";
+  S.byId = Object.fromEntries(S.data.products.map(p => [p.id, p]));
+  S.basketKey = null; renderPicker(); chooseFirst();
+}
+function setSource(t, live) { $("srcText").textContent = t; $("srcDot").className = "dot" + (live ? " live" : ""); }
+
+const SAMPLES = [
+  { key: "s-desk", label: "Desk set", note: "Notebook, fountain pen, bookmarks, planner",
+    names: [["Dot Grid Notebook A5", 1], ["Brass Fountain Pen", 1], ["Pressed Flower Bookmarks", 2], ["Desk Planner 2027", 1]] },
+  { key: "s-tech", label: "Tech gift", note: "Earbuds, cable, phone case, smartwatch",
+    names: [["Pebble True Wireless Earbuds", 1], ["Braided USB-C Cable 2 m", 2], ["Minimal Leather Phone Case", 1], ["Orbit Smartwatch", 1]] },
+  { key: "s-home", label: "Home bundle", note: "Candle, mug ×2, napkins, bud vase",
+    names: [["Amber Soy Candle", 1], ["Stoneware Coffee Mug", 2], ["Linen Napkin Set of 4", 1], ["Ceramic Bud Vase", 1]] },
+  { key: "s-beauty", label: "Beauty haul", note: "Eight small beauty items",
+    names: [["Velvet Matte Lipstick", 2], ["Volume Lash Mascara", 2], ["Precision Liquid Eyeliner", 1], ["Satin Glow Highlighter", 1], ["Hydra Silk Serum 30 ml", 1], ["Cloud Cream Moisturiser", 1]] },
+  { key: "s-style", label: "Accessories", note: "Scarf, sunglasses, card holder, earrings, scrunchies",
+    names: [["Cashmere Blend Scarf", 1], ["Tortoiseshell Sunglasses", 1], ["Leather Card Holder", 1], ["Pearl Drop Earrings", 1], ["Silk Scrunchie Set", 1]] },
+];
+function sampleLines(s) {
+  const byName = Object.fromEntries(S.data.products.map(p => [p.name, p]));
+  return s.names.filter(([n]) => byName[n]).map(([n, q]) => ({ product_id: byName[n].id, quantity: q, name: n }));
+}
+function baskets() {
+  if (S.tab === "orders") return S.data.orders.map(o => ({ key: "o-" + o.code, label: o.code, kind: "Store order",
+    note: o.items.map(i => (i.quantity > 1 ? i.quantity + " × " : "") + i.name).join(", "),
+    meta: `${o.status.replace(/_/g, " ")} · ${new Date(o.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`,
+    lines: o.items.filter(i => S.byId[i.product_id]) }));
+  if (S.tab === "samples") return SAMPLES.map(s => ({ key: s.key, label: s.label, kind: "Sample", note: s.note, lines: sampleLines(s) }));
+  return [];
+}
+
+/* ---------- basket picker ---------- */
+function renderPicker() {
+  for (const [id, t] of [["tabOrders", "orders"], ["tabSamples", "samples"], ["tabBuild", "build"]]) $(id).setAttribute("aria-pressed", S.tab === t);
+  const el = $("pickPanel");
+  if (S.tab === "build") {
+    const cats = {};
+    for (const p of S.data.products) (cats[p.category] = cats[p.category] || []).push(p);
+    el.innerHTML = `<div class="pgrid">${Object.entries(cats).map(([c, ps]) => `<div class="cat">${esc(c)}</div>` + ps.map(p => `
+      <div class="pcard"><span class="sw" style="background:${esc(toneOf(p))}"></span>
+        <div><div class="nm">${esc(p.name)}</div><div class="dm">${p.dims_cm.map(f1).join("×")} cm${p.fragile ? " · fragile" : ""}</div></div>
+        <div class="qty"><button type="button" data-p="${p.id}" data-d="-1" aria-label="Remove one ${esc(p.name)}">−</button><span>${S.custom[p.id] || 0}</span><button type="button" data-p="${p.id}" data-d="1" aria-label="Add one ${esc(p.name)}">+</button></div>
+      </div>`).join("")).join("")}</div>`;
+    el.querySelectorAll(".qty button").forEach(b => b.onclick = () => {
+      const id = +b.dataset.p, q = Math.max(0, Math.min(20, (S.custom[id] || 0) + +b.dataset.d));
+      if (q) S.custom[id] = q; else delete S.custom[id];
+      if (Object.values(S.custom).reduce((a, b) => a + b, 0) > 40) { S.custom[id] = q - 1; return; }
+      b.parentElement.querySelector("span").textContent = S.custom[id] || 0;
+      runCustom();
+    });
+    return;
+  }
+  const list = baskets();
+  if (!list.length) { el.innerHTML = `<p class="note">No store orders yet. Place an order in the TOTE shop, then press “Connect to store”, or try a sample basket.</p>`; return; }
+  el.innerHTML = `<div class="olist">${list.map(b => `
+    <button type="button" class="ocard${b.key === S.basketKey ? " on" : ""}" data-k="${esc(b.key)}">
+      <span><span class="tag">${b.kind}</span> <b class="${b.kind === "Store order" ? "mono" : ""}">${esc(b.label)}</b></span>
+      <span>${esc(b.note)}</span>${b.meta ? `<small>${esc(b.meta)}</small>` : ""}
+    </button>`).join("")}</div>`;
+  el.querySelectorAll(".ocard").forEach(c => c.onclick = () => { const b = list.find(x => x.key === c.dataset.k); choose(b); });
+}
+function chooseFirst() {
+  if (S.tab === "orders" && !S.data.orders.length) { S.tab = "samples"; renderPicker(); }
+  const b = baskets()[0]; if (b) choose(b);
+}
+function choose(b) {
+  S.basketKey = b.key; S.label = (b.kind === "Store order" ? "Order " : "") + b.label;
+  document.querySelectorAll(".ocard").forEach(c => c.classList.toggle("on", c.dataset.k === b.key));
+  run(b.lines);
+}
+function runCustom() {
+  const lines = Object.entries(S.custom).map(([id, q]) => ({ product_id: +id, quantity: q }));
+  S.label = "Your basket";
+  if (lines.length) run(lines); else clearResult();
+}
+
+/* ---------- units, simulation (same rules as the backend) ---------- */
+function buildUnits(lines) {
+  const R = S.data.rules, units = [];
+  for (const ln of lines) {
+    const p = S.byId[ln.product_id]; if (!p) continue;
+    let pad = p.padding_cm || 0;
+    if (p.fragile && pad < R.fragile_min_padding_cm) pad = R.fragile_min_padding_cm;
+    for (let k = 0; k < ln.quantity; k++) {
+      const pc = p.dims_cm.map(d => d + 2 * pad);
+      units.push({ ref: `P${p.id}-${k + 1}`, name: p.name, product: p, tone: toneOf(p), pad, fragile: p.fragile,
+        weight_g: p.weight_g, dims_cm: p.dims_cm, padded_cm: pc.map(v => Math.round(v * 100) / 100), mm: pc.map(mmUp) });
+    }
+  }
+  return units;
+}
+function metrics(boxCm, units, placements, unitCost) {
+  const R = S.data.rules, [L, W, H] = boxCm, vol = L * W * H;
+  const itemsVol = units.reduce((a, u) => a + u.padded_cm[0] * u.padded_cm[1] * u.padded_cm[2], 0);
+  const floor = placements.reduce((a, p) => a + p.dx * p.dy, 0);
+  const board = (2 * L + 2 * W + R.glue_flap_cm) * (H + W) / 10000;
+  const empty = Math.max(0, vol - itemsVol);
+  return { box: boxCm, vol, itemsVol, empty, fill: Math.min(1, itemsVol / vol), floorFill: Math.min(1, floor / (L * W)),
+    board, cost: unitCost != null ? unitCost : Math.round((board * R.board_cost_per_m2 + R.box_make_cost) * 100) / 100,
+    costRule: unitCost != null ? "catalogue price" : "cut to size", sheets: Math.ceil(empty / R.void_fill_cm3_per_unit) };
+}
+const toPl = (u, x, y, l, w, h, rot, seq) => ({ u, seq, x: cm(x), y: cm(y), dx: cm(l), dy: cm(w), dz: cm(h), rotated: rot });
+
+function withAlgorithm(units) {
+  const tr = designTrace(units.map(u => ({ l: u.mm[0], w: u.mm[1], h: u.mm[2] })));
+  const b = tr.trials[tr.best].result;
+  const placements = tr.order.map((id, n) => { const p = b.p[id]; return toPl(units[id], p.x, p.y, p.l, p.w, p.h, p.rotated, n + 1); });
+  return { key: "algo", label: "With the algorithm", trace: tr, placements, ...metrics([cm(b.W), cm(b.L), cm(b.H)], units, placements) };
+}
+function singleRow(units) {
+  let x = 0; const placements = units.map((u, i) => { const p = toPl(u, x, 0, u.mm[0], u.mm[1], u.mm[2], false, i + 1); x += u.mm[0]; return p; });
+  const box = [cm(x), cm(Math.max(...units.map(u => u.mm[1]))), cm(Math.max(...units.map(u => u.mm[2])))];
+  return { key: "row", label: "Without: one straight row", note: "Side by side in pick order, never turned, no width search.", placements, ...metrics(box, units, placements) };
+}
+function stockCarton(units) {
+  const weight = units.reduce((a, u) => a + u.weight_g, 0);
+  const items = units.map(u => ({ l: u.mm[0], w: u.mm[1], h: u.mm[2] }));
+  const base = { key: "stock", label: "Without: smallest stock carton", note: "The smallest catalogue carton a packer could grab that holds everything." };
+  const cartons = [...S.data.cartons].sort((a, b) => a.dims_cm[0] * a.dims_cm[1] * a.dims_cm[2] - b.dims_cm[0] * b.dims_cm[1] * b.dims_cm[2]);
+  for (const c of cartons) {
+    if (c.max_weight_g < weight) continue;
+    const [L, W, H] = c.dims_cm.map(mmDown);
+    const fit = fitCarton(items, L, W, H);
+    if (!fit.fits) continue;
+    const a = fit.attempts[fit.chosen], sw = a.name === "rows_along_width";
+    const placements = fit.order.map((id, n) => { const p = a.result.p[id];
+      return sw ? toPl(units[id], p.y, p.x, p.w, p.l, p.h, p.rotated, n + 1) : toPl(units[id], p.x, p.y, p.l, p.w, p.h, p.rotated, n + 1); });
+    return { ...base, available: true, carton: c.name, placements, ...metrics(c.dims_cm.slice(), units, placements, c.unit_cost) };
+  }
+  return { ...base, available: false, reason: "No stock carton holds these items in one layer." };
+}
+function steps(placements) {
+  let rowY = null, row = 0;
+  return placements.map(p => {
+    const nr = rowY === null || p.y > rowY + 1e-6; if (nr) { row++; rowY = p.y; }
+    const t = [];
+    if (nr && row > 1) t.push(`the row is full, so row ${row} starts ${f1(p.y)} cm back`);
+    t.push(`placed at ${f1(p.x)} cm along row ${row}`);
+    if (p.rotated) t.push("turned 90° to fit");
+    return { ...p, row, text: t.join("; ") };
+  });
+}
+
+function run(lines) {
+  stopAll();
+  const units = buildUnits(lines);
+  if (!units.length) return clearResult();
+  const algo = withAlgorithm(units), row = singleRow(units), stock = stockCarton(units);
+  algo.steps = steps(algo.placements);
+  S.res = { units, algo, row, stock };
+  S.trial = algo.trace.best; S.step = algo.placements.length;
+  renderAll();
+}
+function clearResult() { S.res = null; stopAll(); renderAll(); }
+
+/* ---------- drawing helpers ---------- */
+const NS = "http://www.w3.org/2000/svg";
+function floorSvg(svg, boxW, boxL, placements, o = {}) {
+  // boxW along x (row width), boxL along y (depth). o.scale: px per cm (shared scale), o.upto: steps shown
+  const vb = svg.viewBox.baseVal, pad = 34, availW = vb.width - pad - 12, availH = vb.height - pad - 14;
+  const s = o.scale || Math.min(availW / boxW, availH / boxL);
+  const ox = pad, oy = 14, upto = o.upto ?? placements.length;
+  let h = "";
+  // rulers
+  const step = niceStep(Math.max(boxW, boxL));
+  for (let v = 0; v <= boxW + 1e-6; v += step) h += `<line x1="${ox + v * s}" y1="${oy - 4}" x2="${ox + v * s}" y2="${oy}" stroke="var(--muted)" stroke-width="1"/><text x="${ox + v * s}" y="${oy - 6}" text-anchor="middle">${+v.toFixed(1)}</text>`;
+  for (let v = 0; v <= boxL + 1e-6; v += step) h += `<line x1="${ox - 4}" y1="${oy + v * s}" x2="${ox}" y2="${oy + v * s}" stroke="var(--muted)" stroke-width="1"/><text x="${ox - 7}" y="${oy + v * s + 3}" text-anchor="end">${+v.toFixed(1)}</text>`;
+  // carton floor
+  h += `<rect x="${ox}" y="${oy}" width="${boxW * s}" height="${boxL * s}" fill="var(--panel-2)" stroke="var(--carton-edge)" stroke-width="2"/>`;
+  h += `<pattern id="${svg.id}-air" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" stroke="var(--grid)" stroke-width="3"/></pattern>`;
+  h += `<rect x="${ox}" y="${oy}" width="${boxW * s}" height="${boxL * s}" fill="url(#${svg.id}-air)"/>`;
+  placements.forEach((p, i) => {
+    if (i >= upto) { if (o.ghost) h += `<rect x="${ox + p.x * s}" y="${oy + p.y * s}" width="${p.dx * s}" height="${p.dy * s}" fill="none" stroke="var(--muted)" stroke-dasharray="3 3" stroke-width="1"/>`; return; }
+    const cur = o.current === i, x = ox + p.x * s, y = oy + p.y * s, w = p.dx * s, hh = p.dy * s, ps = p.u.pad * s;
+    h += `<g><rect x="${x}" y="${y}" width="${w}" height="${hh}" fill="${esc(p.u.tone)}" fill-opacity=".28" stroke="${cur ? "var(--accent)" : "var(--fg)"}" stroke-opacity="${cur ? 1 : .35}" stroke-width="${cur ? 2.5 : 1}"/>`;
+    h += `<rect x="${x + ps}" y="${y + ps}" width="${Math.max(0, w - 2 * ps)}" height="${Math.max(0, hh - 2 * ps)}" fill="${esc(p.u.tone)}"/>`;
+    if (o.labels !== false && w > 16 && hh > 14) h += `<text x="${x + w / 2}" y="${y + hh / 2 + 3.5}" text-anchor="middle" style="fill:${inkOn(p.u.tone)};font-weight:600">${p.seq}</text>`;
+    h += `<title>${esc(p.u.name)} · ${f1(p.dx)} × ${f1(p.dy)} cm${p.rotated ? " · turned 90°" : ""}</title></g>`;
+  });
+  svg.innerHTML = h;
+  return s;
+}
+function niceStep(max) { const raw = max / 6, m = Math.pow(10, Math.floor(Math.log10(raw))); for (const k of [1, 2, 2.5, 5, 10]) if (raw <= k * m) return k * m; return 10 * m; }
+
+/* ---------- render ---------- */
+function renderAll() {
+  const r = S.res;
+  if (!r) {
+    $("vBig").textContent = "—"; ["vBox", "vStock", "vRow"].forEach(i => $(i).textContent = "—");
+    $("unitsTable").innerHTML = ""; $("unitsNote").textContent = "Add products to see the packing.";
+    ["sweepSvg", "trialFloor", "placeSvg"].forEach(i => $(i).innerHTML = ""); $("trialRead").innerHTML = ""; $("stepList").innerHTML = "";
+    $("cgrid").innerHTML = ""; $("ctable").innerHTML = ""; $("savings").innerHTML = ""; return;
+  }
+  renderVerdict(); renderUnits(); renderSweep(); renderTrial(); renderPlace(); renderCompare();
+}
+function renderVerdict() {
+  const { algo, stock, row } = S.res;
+  $("vLabel").textContent = S.label;
+  const ref = stock.available ? stock : row;
+  const saved = 1 - algo.vol / ref.vol;
+  $("vBig").textContent = saved >= 0 ? `${pct(saved)} less box` : `${pct(-saved)} more box`;
+  $("vBox").textContent = `${dims(algo.box)} · ${f0(algo.vol)} cm³`;
+  $("vStock").textContent = stock.available ? `${stock.carton} · ${f0(stock.vol)} cm³` : "none fits";
+  $("vRow").textContent = `${dims(row.box)} · ${f0(row.vol)} cm³`;
+}
+function renderUnits() {
+  const u = S.res.units;
+  $("unitsTitle").textContent = `${u.length} item${u.length > 1 ? "s" : ""} as the packer sees them`;
+  $("unitsTable").innerHTML = `<thead><tr><th>Item</th><th class="n">Product cm</th><th class="n">Padding</th><th class="n">Packed size mm</th></tr></thead><tbody>` +
+    u.map(x => `<tr><td><span class="sw" style="display:inline-block;vertical-align:-2px;margin-right:6px;background:${esc(x.tone)}"></span>${esc(x.name)}${x.fragile ? ' <span class="tag">fragile</span>' : ""}</td><td class="n">${x.dims_cm.map(f1).join("×")}</td><td class="n">${x.pad ? f1(x.pad) + " cm" : "—"}</td><td class="n">${x.mm.join("×")}</td></tr>`).join("") + "</tbody>";
+  $("unitsNote").textContent = "Packed size = product + padding on every side, rounded up to the next millimetre. Fragile items get at least " + f1(S.data.rules.fragile_min_padding_cm) + " cm.";
+}
+function renderSweep() {
+  const t = S.res.algo.trace, svg = $("sweepSvg"), W = 640, H = 300, L = 58, R = 14, T = 16, B = 40;
+  const fit = t.trials.filter(x => x.fits);
+  const vol = x => x.result.W * x.result.L * x.result.H / 1000;
+  const vmax = Math.max(...fit.map(vol)), vmin = Math.min(...fit.map(vol));
+  const y0 = Math.max(0, vmin - (vmax - vmin) * .15), y1 = vmax + (vmax - vmin) * .08 || vmax + 1;
+  const wlo = t.lo, whi = Math.max(t.hi, t.lo + 1);
+  const X = w => L + (w - wlo) / (whi - wlo) * (W - L - R), Y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
+  let h = "";
+  const ys = niceStep(y1 - y0);
+  for (let v = Math.ceil(y0 / ys) * ys; v <= y1; v += ys) h += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)"/><text x="${L - 6}" y="${Y(v) + 3}" text-anchor="end">${f0(v)}</text>`;
+  const xs = niceStep(whi - wlo);
+  for (let v = Math.ceil(wlo / xs) * xs; v <= whi; v += xs) h += `<text x="${X(v)}" y="${H - B + 16}" text-anchor="middle">${+(v / 10).toFixed(1)}</text>`;
+  h += `<text x="${(L + W - R) / 2}" y="${H - 6}" text-anchor="middle">row width tried (cm)</text>`;
+  h += `<text transform="translate(12 ${(T + H - B) / 2}) rotate(-90)" text-anchor="middle">box volume (cm³)</text>`;
+  const pts = t.trials.map(x => x.fits ? `${X(x.width).toFixed(1)},${Y(vol(x)).toFixed(1)}` : null).filter(Boolean);
+  h += `<polyline id="sweepLine" points="${pts.join(" ")}" fill="none" stroke="var(--lav)" stroke-width="2" stroke-linejoin="round"/>`;
+  t.trials.forEach(x => { if (!x.fits) h += `<text x="${X(x.width)}" y="${H - B - 4}" text-anchor="middle" style="fill:var(--bad)">×</text>`; });
+  const b = t.trials[t.best];
+  h += `<circle cx="${X(b.width)}" cy="${Y(vol(b))}" r="6" fill="var(--accent)" stroke="var(--panel)" stroke-width="2"/>`;
+  h += `<text x="${X(b.width) + 9}" y="${Y(vol(b)) + 14}" style="fill:var(--fg);font-weight:600">winner · trial ${b.k + 1}</text>`;
+  h += `<g id="cursor"><line id="curLine" y1="${T}" y2="${H - B}" stroke="var(--fg)" stroke-opacity=".5" stroke-dasharray="3 3"/><circle id="curDot" r="4.5" fill="var(--fg)"/></g>`;
+  svg.innerHTML = h;
+  S.sweepXY = { X, Y, vol };
+  $("sweepRange").max = t.trials.length - 1;
+  const uniq = new Set(fit.map(x => `${x.result.W}x${x.result.L}x${x.result.H}`)).size;
+  $("sweepIntro").textContent = `The algorithm tried ${t.trials.length} row widths from ${f1(t.lo / 10)} to ${f1(t.hi / 10)} cm, which gave ${uniq} different box shapes. Each is scored by volume plus a small penalty on the longest side; the lowest score wins.`;
+}
+function renderTrial() {
+  const t = S.res.algo.trace, x = t.trials[S.trial], { X, Y, vol } = S.sweepXY;
+  $("sweepRange").value = S.trial;
+  if (x.fits) { $("curLine").setAttribute("x1", X(x.width)); $("curLine").setAttribute("x2", X(x.width)); $("curDot").setAttribute("cx", X(x.width)); $("curDot").setAttribute("cy", Y(vol(x))); }
+  const units = S.res.units, r = x.result;
+  if (!x.fits) { $("trialFloor").innerHTML = ""; $("trialRead").innerHTML = `<div><dt>Trial ${x.k + 1}</dt><dd>An item is wider than ${f1(x.width / 10)} cm both ways</dd></div>`; return; }
+  const pl = t.order.map((id, n) => { const p = r.p[id]; return toPl(units[id], p.x, p.y, p.l, p.w, p.h, p.rotated, n + 1); });
+  floorSvg($("trialFloor"), cm(r.W), cm(r.L), pl, { labels: true });
+  const isBest = x.k === t.best, bs = t.trials[t.best].result.score;
+  const fillPct = units.reduce((a, u) => a + u.mm[0] * u.mm[1] * u.mm[2], 0) / (r.W * r.L * r.H);
+  $("trialRead").innerHTML = `
+    <div><dt>Trial</dt><dd>${x.k + 1} of ${t.trials.length} ${isBest ? '<span class="pill best">winner</span>' : `<span class="pill meh">+${f1((r.score / bs - 1) * 100)}% score</span>`}</dd></div>
+    <div><dt>Row width tried</dt><dd>${f1(x.width / 10)} cm</dd></div>
+    <div><dt>Box</dt><dd>${dims([cm(r.W), cm(r.L), cm(r.H)])}</dd></div>
+    <div><dt>Volume</dt><dd>${f0(r.W * r.L * r.H / 1000)} cm³</dd></div>
+    <div><dt>Score (mm)</dt><dd>${f0(r.score)}</dd></div>
+    <div><dt>Packed fill</dt><dd>${pct(fillPct)}</dd></div>`;
+}
+function renderPlace() {
+  const a = S.res.algo, n = a.placements.length;
+  const cur = S.step > 0 && S.step <= n ? S.step - 1 : -1;
+  if (S.view === "top") floorSvg($("placeSvg"), a.box[0], a.box[1], a.placements, { upto: S.step, current: cur, ghost: true });
+  else draw3D();
+  $("stepList").innerHTML = a.steps.map((p, i) => `<li class="${i < S.step ? "done" : ""}${i === cur ? " cur" : ""}"><span class="k">${p.seq}</span><span><b>${esc(p.u.name)}</b> <span class="mono" style="font-size:12px">${f1(p.dx)}×${f1(p.dy)} cm</span><br>${esc(p.text)}</span></li>`).join("")
+    + `<li class="${S.step >= n ? "done cur" : ""}"><span class="k">✓</span><span><b>Box closed</b><br>${dims(a.box)} · ${pct(a.fill)} of the box is product and padding; floor ${pct(a.floorFill)} covered.</span></li>`;
+  const c = $("stepList").querySelector("li.cur"); if (c && S.timers.step) c.scrollIntoView({ block: "nearest" });
+  $("placeNote").textContent = `Box ${dims(a.box)}. Height is set by the tallest item (${f1(a.box[2])} cm). Step ${Math.min(S.step, n)} of ${n}.`;
+  $("stPlay").textContent = S.timers.step ? "Pause" : (S.step >= n ? "Replay" : "Play");
+}
+function renderCompare() {
+  const { algo, row, stock } = S.res, opts = [algo, stock, row];
+  const shown = opts.filter(o => o.available !== false);
+  const maxW = Math.max(...shown.map(o => o.box[0])), maxL = Math.max(...shown.map(o => o.box[1]));
+  $("cgrid").innerHTML = opts.map(o => `<div class="panel ccard${o.key === "algo" ? " win" : ""}"><h3>${o.label}${o.carton ? ` · ${esc(o.carton)}` : ""}</h3>
+     ${o.available === false ? `<p class="note">${o.reason}</p>` : `<svg id="cmp-${o.key}" viewBox="0 0 300 240" width="100%" role="img" aria-label="${o.label} top view"></svg>
+     <p class="note">${dims(o.box)} · ${pct(o.fill)} full · ${f0(o.empty)} cm³ of air</p>`}</div>`).join("");
+  // shared scale
+  const s = Math.min((300 - 46) / maxW, (240 - 28) / maxL);
+  shown.forEach(o => floorSvg($("cmp-" + o.key), o.box[0], o.box[1], o.placements, { scale: s }));
+  const rows = [["Box (L × W × H)", o => dims(o.box)], ["Box volume", o => f0(o.vol) + " cm³"], ["Product + padding", o => f0(o.itemsVol) + " cm³"],
+    ["Empty space", o => f0(o.empty) + " cm³"], ["Box filled", o => pct(o.fill)], ["Floor covered", o => pct(o.floorFill)],
+    ["Cardboard", o => o.board.toFixed(3) + " m²"], ["Box cost", o => inr(o.cost) + ` <span class="note">(${o.costRule})</span>`], ["Void-fill sheets", o => o.sheets]];
+  $("ctable").innerHTML = `<thead><tr><th></th>${opts.map(o => `<th class="n">${o.key === "algo" ? "Algorithm" : o.key === "stock" ? "Stock carton" : "One row"}</th>`).join("")}</tr></thead><tbody>` +
+    rows.map(([k, fn]) => `<tr><td>${k}</td>${opts.map(o => `<td class="n">${o.available === false ? "—" : fn(o)}</td>`).join("")}</tr>`).join("") + "</tbody>";
+  $("savings").innerHTML = [stock, row].filter(o => o.available !== false).map(o => {
+    const dv = 1 - algo.vol / o.vol, dc = o.cost - algo.cost, db = o.board - algo.board, ds = o.sheets - algo.sheets;
+    const say = (v, good, bad) => v >= 0 ? good : bad;
+    return `<div class="panel save"><span class="eyebrow">vs ${o.key === "stock" ? "the smallest stock carton" : "one straight row"}</span>
+      <span class="v ${dv >= 0 ? "up" : "down"}">${say(dv, pct(dv) + " less box", pct(-dv) + " more box")}</span>
+      <ul><li>${f0(Math.abs(o.vol - algo.vol))} cm³ ${o.vol >= algo.vol ? "less air shipped" : "more space used"}</li>
+      <li>${Math.abs(db).toFixed(3)} m² ${db >= 0 ? "less" : "more"} cardboard</li>
+      <li>${inr(Math.abs(dc))} ${dc >= 0 ? "cheaper" : "dearer"} per box</li>
+      <li>${Math.abs(ds)} ${ds >= 0 ? "fewer" : "more"} void-fill sheet${Math.abs(ds) === 1 ? "" : "s"}</li></ul></div>`;
+  }).join("");
+  const R = S.data.rules;
+  $("assume").innerHTML = [
+    "All three options use the same padded item sizes.",
+    `Cut-to-size boxes are priced by the board of a regular slotted carton: (2L + 2W + ${R.glue_flap_cm} cm) × (H + W) × ₹${R.board_cost_per_m2}/m² + ₹${R.box_make_cost}.`,
+    "Stock cartons use their catalogue price.",
+    `Void fill: one kraft sheet per ${f0(R.void_fill_cm3_per_unit)} cm³ of empty space (estimate).`,
+    "One layer in every option, so the tallest item sets the height.",
+  ].map(x => `<li>${x}</li>`).join("");
+}
+
+/* ---------- 3D (Three.js, drag to turn) ---------- */
+const V3 = { r: null, scene: null, cam: null, theta: -0.75, phi: 0.95, dist: 0 };
+function draw3D() {
+  const cv = $("placeCanvas");
+  if (!window.THREE) { $("placeNote").textContent = "3D needs an internet connection to load Three.js. The top view works offline."; return; }
+  if (!V3.r) {
+    V3.r = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true });
+    V3.r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    let drag = null;
+    cv.addEventListener("pointerdown", e => { drag = [e.clientX, e.clientY]; cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener("pointermove", e => { if (!drag) return; V3.theta -= (e.clientX - drag[0]) * .01; V3.phi = Math.max(.15, Math.min(1.5, V3.phi - (e.clientY - drag[1]) * .01)); drag = [e.clientX, e.clientY]; frame3D(); });
+    cv.addEventListener("pointerup", () => drag = null);
+    cv.addEventListener("wheel", e => { e.preventDefault(); V3.dist *= e.deltaY > 0 ? 1.1 : .9; frame3D(); }, { passive: false });
+  }
+  const a = S.res.algo, [BW, BL, BH] = a.box, sc = new THREE.Scene();
+  sc.add(new THREE.AmbientLight(0xffffff, .65)); const dl = new THREE.DirectionalLight(0xffffff, .55); dl.position.set(1, 2, 1.5); sc.add(dl);
+  const css = getComputedStyle(document.documentElement);
+  const col = n => new THREE.Color(css.getPropertyValue(n).trim() || "#999");
+  const g = new THREE.Group(); g.position.set(-BW / 2, 0, -BL / 2); sc.add(g);
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(BW, .15, BL), new THREE.MeshLambertMaterial({ color: col("--carton") }));
+  floor.position.set(BW / 2, -.08, BL / 2); g.add(floor);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(BW, BH, BL)), new THREE.LineBasicMaterial({ color: col("--carton-edge") }));
+  edges.position.set(BW / 2, BH / 2, BL / 2); g.add(edges);
+  a.placements.forEach((p, i) => {
+    const pad = p.u.pad, cur = i === S.step - 1;
+    if (i >= S.step) {
+      const gh = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(p.dx, p.dz, p.dy)), new THREE.LineBasicMaterial({ color: col("--muted"), transparent: true, opacity: .45 }));
+      gh.position.set(p.x + p.dx / 2, p.dz / 2, p.y + p.dy / 2); g.add(gh); return;
+    }
+    if (pad > 0) { const sh = new THREE.Mesh(new THREE.BoxGeometry(p.dx, p.dz, p.dy), new THREE.MeshLambertMaterial({ color: new THREE.Color(p.u.tone), transparent: true, opacity: .22 }));
+      sh.position.set(p.x + p.dx / 2, p.dz / 2, p.y + p.dy / 2); g.add(sh); }
+    const m = new THREE.Mesh(new THREE.BoxGeometry(Math.max(.1, p.dx - 2 * pad), Math.max(.1, p.dz - 2 * pad), Math.max(.1, p.dy - 2 * pad)),
+      new THREE.MeshLambertMaterial({ color: cur ? col("--accent") : new THREE.Color(p.u.tone) }));
+    m.position.set(p.x + p.dx / 2, p.dz / 2, p.y + p.dy / 2); g.add(m);
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color: 0x241e2e, transparent: true, opacity: .35 }));
+    e.position.copy(m.position); g.add(e);
+  });
+  V3.scene = sc; V3.h = BH;
+  if (!V3.dist || V3.box !== a.box) { V3.dist = Math.max(BW, BL, BH) * 2.9; V3.box = a.box; }
+  frame3D();
+}
+function frame3D() {
+  const cv = $("placeCanvas"), w = cv.clientWidth || 600, h = cv.clientHeight || 380;
+  V3.r.setSize(w, h, false);
+  const cam = new THREE.PerspectiveCamera(40, w / h, .1, 5000);
+  cam.position.set(V3.dist * Math.sin(V3.phi) * Math.cos(V3.theta), V3.dist * Math.cos(V3.phi), V3.dist * Math.sin(V3.phi) * Math.sin(V3.theta));
+  cam.lookAt(0, V3.h / 2.4, 0);
+  V3.r.render(V3.scene, cam);
+}
+
+/* ---------- controls ---------- */
+function stopAll() { for (const k of Object.keys(S.timers)) { clearInterval(S.timers[k]); delete S.timers[k]; } $("sweepPlay").textContent = "Run the search"; }
+$("sweepRange").oninput = e => { S.trial = +e.target.value; renderTrial(); };
+$("sweepBest").onclick = () => { stopSweep(); S.trial = S.res.algo.trace.best; renderTrial(); };
+function stopSweep() { clearInterval(S.timers.sweep); delete S.timers.sweep; $("sweepPlay").textContent = "Run the search"; }
+$("sweepPlay").onclick = () => {
+  if (!S.res) return;
+  if (S.timers.sweep) return stopSweep();
+  const n = S.res.algo.trace.trials.length; S.trial = 0; $("sweepPlay").textContent = "Pause";
+  S.timers.sweep = setInterval(() => {
+    S.trial++;
+    if (S.trial >= n) { stopSweep(); S.trial = S.res.algo.trace.best; }
+    renderTrial();
+  }, 28);
+};
+function stopStep() { clearInterval(S.timers.step); delete S.timers.step; }
+$("stPlay").onclick = () => {
+  if (!S.res) return;
+  const n = S.res.algo.placements.length;
+  if (S.timers.step) { stopStep(); return renderPlace(); }
+  if (S.step >= n) S.step = 0;
+  S.timers.step = setInterval(() => { S.step++; if (S.step >= n) stopStep(); renderPlace(); }, 900);
+  renderPlace();
+};
+$("stNext").onclick = () => { if (!S.res) return; stopStep(); S.step = Math.min(S.res.algo.placements.length, S.step + 1); renderPlace(); };
+$("stPrev").onclick = () => { if (!S.res) return; stopStep(); S.step = Math.max(0, S.step - 1); renderPlace(); };
+function setView(v) { S.view = v; $("vTop").setAttribute("aria-pressed", v === "top"); $("v3d").setAttribute("aria-pressed", v === "3d");
+  if (v === "3d" && !window.THREE) { S.view = "top"; $("vTop").setAttribute("aria-pressed", true); $("v3d").setAttribute("aria-pressed", false); if (S.res) renderPlace(); $("placeNote").textContent = "3D needs an internet connection to load Three.js. The top view works offline."; return; }
+  $("placeSvg").toggleAttribute("hidden", v !== "top"); $("placeCanvas").toggleAttribute("hidden", v !== "3d"); if (S.res) renderPlace(); }
+$("vTop").onclick = () => setView("top"); $("v3d").onclick = () => setView("3d");
+$("tabOrders").onclick = () => { S.tab = "orders"; renderPicker(); };
+$("tabSamples").onclick = () => { S.tab = "samples"; renderPicker(); };
+$("tabBuild").onclick = () => { S.tab = "build"; renderPicker(); if (Object.keys(S.custom).length) runCustom(); };
+$("retry").onclick = loadData;
+window.addEventListener("resize", () => { if (S.view === "3d" && V3.r && S.res) frame3D(); });
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => S.res && renderPlace());
+loadData();
+</script>

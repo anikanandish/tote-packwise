@@ -1,0 +1,36 @@
+/* TOTE design tokens */
+:root {
+  --wine: #722F37;
+  --wine-deep: #5A242B;
+  --wine-soft: #F3E4E1;
+  --ivory: #FFF9F0;
+  --ivory-2: #F8EFE2;
+  --charcoal: #242424;
+  --sand: #D9B88F;
+  --sand-soft: #EFE0CB;
+  --ink-2: #5B5552;
+  --line: #E7DACA;
+  --ok: #3F6B4A;
+  --warn: #A1532A;
+  --danger: #A12B33;
+
+  --display: 'Bodoni Moda', 'Didot', 'Bodoni 72', Georgia, serif;
+  --sans: 'Instrument Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  /* modular scale 1.25 */
+  --t-xs: 0.8rem;
+  --t-sm: 0.9rem;
+  --t-md: 1rem;
+  --t-lg: 1.25rem;
+  --t-xl: 1.563rem;
+  --t-2xl: 1.953rem;
+  --t-3xl: 2.441rem;
+  --t-4xl: 3.815rem;
+
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px; --s8: 72px; --s9: 112px;
+  --r-sm: 2px;
+  --r-pill: 999px;
+  --gutter: clamp(16px, 4vw, 56px);
+  --max: 1320px;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+}

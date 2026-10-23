@@ -1,0 +1,641 @@
+{
+ "source": "Built-in copy of the TOTE catalogue",
+ "products": [
+  {
+   "id": 6,
+   "name": "Cloud Cream Moisturiser",
+   "category": "Beauty",
+   "art": {
+    "shape": "jar",
+    "tone": "#F3E7DA"
+   },
+   "dims_cm": [
+    7.0,
+    7.0,
+    6.0
+   ],
+   "weight_g": 220,
+   "fragile": true,
+   "padding_cm": 1.0
+  },
+  {
+   "id": 2,
+   "name": "Gentle Nail Polish Remover 150 ml",
+   "category": "Beauty",
+   "art": {
+    "shape": "flatbottle",
+    "tone": "#F2C9C4"
+   },
+   "dims_cm": [
+    6.0,
+    4.0,
+    13.0
+   ],
+   "weight_g": 170,
+   "fragile": false,
+   "padding_cm": 0.5
+  },
+  {
+   "id": 5,
+   "name": "Hydra Silk Serum 30 ml",
+   "category": "Beauty",
+   "art": {
+    "shape": "dropper",
+    "tone": "#E8D2B0"
+   },
+   "dims_cm": [
+    4.0,
+    4.0,
+    12.0
+   ],
+   "weight_g": 120,
+   "fragile": true,
+   "padding_cm": 1.0
+  },
+  {
+   "id": 3,
+   "name": "Precision Liquid Eyeliner",
+   "category": "Beauty",
+   "art": {
+    "shape": "pen",
+    "tone": "#1F1B1E"
+   },
+   "dims_cm": [
+    1.5,
+    1.5,
+    13.0
+   ],
+   "weight_g": 12,
+   "fragile": false,
+   "padding_cm": 0
+  },
+  {
+   "id": 4,
+   "name": "Rose Oud Eau de Parfum 50 ml",
+   "category": "Beauty",
+   "art": {
+    "shape": "perfume",
+    "tone": "#C98B7A"
+   },
+   "dims_cm": [
+    8.0,
+    5.0,
+    12.0
+   ],
+   "weight_g": 310,
+   "fragile": true,
+   "padding_cm": 1.0
+  },
+  {
+   "id": 7,
+   "name": "Satin Glow Highlighter",
+   "category": "Beauty",
+   "art": {
+    "shape": "compact",
+    "tone": "#D9B88F"
+   },
+   "dims_cm": [
+    8.0,
+    8.0,
+    1.5
+   ],
+   "weight_g": 60,
+   "fragile": true,
+   "padding_cm": 0.5
+  },
+  {
+   "id": 1,
+   "name": "Velvet Matte Lipstick",
+   "category": "Beauty",
+   "art": {
+    "shape": "lipstick",
+    "tone": "#8E2A35"
+   },
+   "dims_cm": [
+    2.5,
+    2.5,
+    8.5
+   ],
+   "weight_g": 30,
+   "fragile": false,
+   "padding_cm": 0
+  },
+  {
+   "id": 8,
+   "name": "Volume Lash Mascara",
+   "category": "Beauty",
+   "art": {
+    "shape": "pen",
+    "tone": "#2B2B2B"
+   },
+   "dims_cm": [
+    2.0,
+    2.0,
+    14.0
+   ],
+   "weight_g": 20,
+   "fragile": false,
+   "padding_cm": 0
+  },
+  {
+   "id": 28,
+   "name": "Brass Fountain Pen",
+   "category": "Books & Stationery",
+   "art": {
+    "shape": "fountainpen",
+    "tone": "#B08D57"
+   },
+   "dims_cm": [
+    16.0,
+    5.0,
+    3.0
+   ],
+   "weight_g": 80,
+   "fragile": false,
+   "padding_cm": 0.5
+  },
+  {
+   "id": 30,
+   "name": "Desk Planner 2027",
+   "category": "Books & Stationery",
+   "art": {
+    "shape": "planner",
+    "tone": "#3B3536"
+   },
+   "dims_cm": [
+    25.0,
+    18.0,
+    2.0
+   ],
+   "weight_g": 420,
+   "fragile": false,
+   "padding_cm": 0
+  },
+  {
+   "id": 27,
+   "name": "Dot Grid Notebook A5",
+   "category": "Books & Stationery",
+   "art": {
+    "shape": "notebook",
+    "tone": "#D9B88F"
+   },
+   "dims_cm": [
+    21.0,
+    15.0,
+    1.5
+   ],
+   "weight_g": 280,
+   "fragile": false,
+   "padding_cm": 0
+  },
+  {
+   "id": 29,
+   "name": "Pressed Flower Bookmarks",
+   "category": "Books & Stationery",
+   "art": {
+    "shape": "bookmark",
+    "tone": "#C98B7A"
+   },
+   "dims_cm": [
+    15.0,
+    6.0,
+    0.5
+   ],
+   "weight_g": 20,
+   "fragile": false,
+   "padding_cm": 0
+  },
+  {
+   "id": 26,
+   "name": "The Quiet Edit (Hardcover)",
+   "category": "Books & Stationery",
+   "art": {
+    "shape": "book",
+    "tone": "#722F37"
+   },
+   "dims_cm": [
+    23.0,
+    15.0,
+    3.0
+   ],
+   "weight_g": 520,
+   "fragile": false,
+   "padding_cm": 0
+  },
+  {
+   "id": 9,
+   "name": "Aura Wireless Headphones",
+   "category": "Electronics",
+   "art": {
+    "shape": "headphones",
+    "tone": "#2E2A2B"
+   },
+   "dims_cm": [
+    20.0,
+    17.0,
+    9.0
+   ],
+   "weight_g": 380,
+   "fragile": true,
+   "padding_cm": 1.0
+  },
+  {
+   "id": 11,
+   "name": "Braided USB-C Cable 2 m",
+   "category": "Electronics",
+   "art": {
+    "shape": "cable",
+    "tone": "#A35D4F"
+   },
+   "dims_cm": [
+    12.0,
+    10.0,
+    3.0
+   ],
+   "weight_g": 70,
+   "fragile": false,
+   "padding_cm": 0
+  },
+  {
+   "id": 14,
+   "name": "Mini Bluetooth Speaker",
+   "category": "Electronics",
+   "art": {
+    "shape": "speaker",
+    "tone": "#722F37"
+   },
+   "dims_cm": [
+    9.0,
+    9.0,
+    10.0
+   ],
+   "weight_g": 340,
+   "fragile": false,
+   "padding_cm": 0.5
+  },
+  {
+   "id": 12,
+   "name": "Minimal Leather Phone Case",
+   "category": "Electronics",
+   "art": {
+    "shape": "phonecase",
+    "tone": "#6B3A2E"
+   },
+   "dims_cm": [
+    17.0,
+    9.0,
+    2.0
+   ],
+   "weight_g": 60,
+   "fragile": false,
+   "padding_cm": 0
+  },
+  {
+   "id": 13,
+   "name": "Orbit Smartwatch",
+   "category": "Electronics",
+   "art": {
+    "shape": "watch",
+    "tone": "#3A3536"
+   },
+   "dims_cm": [
+    10.0,
+    9.0,
+    8.0
+   ],
+   "weight_g": 210,
+   "fragile": true,
+   "padding_cm": 1.0
+  },
+  {
+   "id": 10,
+   "name": "Pebble True Wireless Earbuds",
+   "category": "Electronics",
+   "art": {
+    "shape": "earbuds",
+    "tone": "#EDE6DD"
+   },
+   "dims_cm": [
+    7.0,
+    6.0,
+    3.5
+   ],
+   "weight_g": 90,
+   "fragile": false,
+   "padding_cm": 0
+  },
+  {
+   "id": 15,
+   "name": "Cashmere Blend Scarf",
+   "category": "Fashion",
+   "art": {
+    "shape": "scarf",
+    "tone": "#B98A6E"
+   },
+   "dims_cm": [
+    25.0,
+    20.0,
+    4.0
+   ],
+   "weight_g": 220,
+   "fragile": false,
+   "padding_cm": 0
+  },
+  {
+   "id": 19,
+   "name": "Leather Card Holder",
+   "category": "Fashion",
+   "art": {
+    "shape": "cardholder",
+    "tone": "#3B2A26"
+   },
+   "dims_cm": [
+    11.0,
+    8.0,
+    1.5
+   ],
+   "weight_g": 50,
+   "fragile": false,
+   "padding_cm": 0
+  },
+  {
+   "id": 20,
+   "name": "Pearl Drop Earrings",
+   "category": "Fashion",
+   "art": {
+    "shape": "earrings",
+    "tone": "#EFE6D8"
+   },
+   "dims_cm": [
+    8.0,
+    8.0,
+    4.0
+   ],
+   "weight_g": 40,
+   "fragile": false,
+   "padding_cm": 0
+  },
+  {
+   "id": 18,
+   "name": "Silk Scrunchie Set",
+   "category": "Fashion",
+   "art": {
+    "shape": "scrunchie",
+    "tone": "#D9B88F"
+   },
+   "dims_cm": [
+    12.0,
+    10.0,
+    3.0
+   ],
+   "weight_g": 40,
+   "fragile": false,
+   "padding_cm": 0
+  },
+  {
+   "id": 16,
+   "name": "Structured Mini Tote",
+   "category": "Fashion",
+   "art": {
+    "shape": "bag",
+    "tone": "#722F37"
+   },
+   "dims_cm": [
+    26.0,
+    12.0,
+    20.0
+   ],
+   "weight_g": 520,
+   "fragile": false,
+   "padding_cm": 0
+  },
+  {
+   "id": 17,
+   "name": "Tortoiseshell Sunglasses",
+   "category": "Fashion",
+   "art": {
+    "shape": "sunglasses",
+    "tone": "#5A3A2A"
+   },
+   "dims_cm": [
+    16.0,
+    7.0,
+    5.0
+   ],
+   "weight_g": 110,
+   "fragile": true,
+   "padding_cm": 0.5
+  },
+  {
+   "id": 21,
+   "name": "Amber Soy Candle",
+   "category": "Home & Living",
+   "art": {
+    "shape": "candle",
+    "tone": "#B8743A"
+   },
+   "dims_cm": [
+    9.0,
+    9.0,
+    10.0
+   ],
+   "weight_g": 450,
+   "fragile": true,
+   "padding_cm": 1.0
+  },
+  {
+   "id": 25,
+   "name": "Cedar Reed Diffuser 200 ml",
+   "category": "Home & Living",
+   "art": {
+    "shape": "diffuser",
+    "tone": "#8C6A4F"
+   },
+   "dims_cm": [
+    8.0,
+    8.0,
+    22.0
+   ],
+   "weight_g": 520,
+   "fragile": true,
+   "padding_cm": 1.0
+  },
+  {
+   "id": 24,
+   "name": "Ceramic Bud Vase",
+   "category": "Home & Living",
+   "art": {
+    "shape": "vase",
+    "tone": "#F1E9DE"
+   },
+   "dims_cm": [
+    8.0,
+    8.0,
+    16.0
+   ],
+   "weight_g": 420,
+   "fragile": true,
+   "padding_cm": 1.5
+  },
+  {
+   "id": 23,
+   "name": "Linen Napkin Set of 4",
+   "category": "Home & Living",
+   "art": {
+    "shape": "linen",
+    "tone": "#CDBBA3"
+   },
+   "dims_cm": [
+    22.0,
+    16.0,
+    4.0
+   ],
+   "weight_g": 300,
+   "fragile": false,
+   "padding_cm": 0
+  },
+  {
+   "id": 22,
+   "name": "Stoneware Coffee Mug",
+   "category": "Home & Living",
+   "art": {
+    "shape": "mug",
+    "tone": "#E9DFD1"
+   },
+   "dims_cm": [
+    12.0,
+    9.0,
+    10.0
+   ],
+   "weight_g": 380,
+   "fragile": true,
+   "padding_cm": 1.0
+  }
+ ],
+ "cartons": [
+  {
+   "code": "STD-01",
+   "name": "Ultra-Small / Cosmetics",
+   "dims_cm": [
+    10.0,
+    10.0,
+    5.0
+   ],
+   "max_weight_g": null,
+   "unit_cost": 8.53
+  },
+  {
+   "code": "STD-02",
+   "name": "Small Mailer / Accessories",
+   "dims_cm": [
+    20.0,
+    15.0,
+    10.0
+   ],
+   "max_weight_g": null,
+   "unit_cost": 20.38
+  },
+  {
+   "code": "STD-03",
+   "name": "Medium Mailer / Skincare Kit",
+   "dims_cm": [
+    23.0,
+    15.0,
+    10.0
+   ],
+   "max_weight_g": null,
+   "unit_cost": 21.88
+  },
+  {
+   "code": "STD-04",
+   "name": "Standard E-commerce Box",
+   "dims_cm": [
+    30.0,
+    23.0,
+    10.0
+   ],
+   "max_weight_g": null,
+   "unit_cost": 38.13
+  },
+  {
+   "code": "STD-05",
+   "name": "Shoe Box / Small Gadgets",
+   "dims_cm": [
+    30.0,
+    20.0,
+    13.0
+   ],
+   "max_weight_g": null,
+   "unit_cost": 36.16
+  },
+  {
+   "code": "STD-08",
+   "name": "Heavy Gadget Carrier",
+   "dims_cm": [
+    29.0,
+    28.0,
+    13.0
+   ],
+   "max_weight_g": null,
+   "unit_cost": 50.18
+  },
+  {
+   "code": "STD-06",
+   "name": "Medium Apparel / Electronics",
+   "dims_cm": [
+    36.0,
+    25.0,
+    15.0
+   ],
+   "max_weight_g": null,
+   "unit_cost": 52.2
+  },
+  {
+   "code": "STD-07",
+   "name": "Large Multi-Item Box",
+   "dims_cm": [
+    46.0,
+    36.0,
+    20.0
+   ],
+   "max_weight_g": null,
+   "unit_cost": 95.8
+  }
+ ],
+ "rules": {
+  "fragile_min_padding_cm": 1.0,
+  "board_cost_per_m2": 100.0,
+  "box_make_cost": 2.0,
+  "glue_flap_cm": 3.5,
+  "void_fill_cm3_per_unit": 2000.0
+ },
+ "orders": [
+  {
+   "code": "TOTE-4A3EFE",
+   "status": "awaiting_packing",
+   "created_at": "2026-10-23T16:52:34.944845",
+   "items": [
+    {
+     "product_id": 1,
+     "name": "Velvet Matte Lipstick",
+     "quantity": 1
+    },
+    {
+     "product_id": 2,
+     "name": "Gentle Nail Polish Remover 150 ml",
+     "quantity": 1
+    },
+    {
+     "product_id": 3,
+     "name": "Precision Liquid Eyeliner",
+     "quantity": 2
+    },
+    {
+     "product_id": 4,
+     "name": "Rose Oud Eau de Parfum 50 ml",
+     "quantity": 1
+    }
+   ]
+  }
+ ]
+}

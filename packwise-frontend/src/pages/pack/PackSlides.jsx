@@ -7,6 +7,47 @@ import ProductArt from '../../components/ProductArt'
 import { colorsFor, setupShort, cartonTitle } from '../../lib/packPlan'
 import { readView, saveView } from '../../lib/viewPref'
 
+// ---- Manual last-minute adjustment (W A S D) --------------------------------------------
+// The worker can nudge the item being placed. A move is refused if the item (with its padding
+// space) would leave the carton or overlap any other item. Offsets are kept per plan in this
+// browser only; the engine's plan itself is not changed.
+const NUDGE_CM = 0.5          // one key press
+const NUDGE_FINE_CM = 0.1     // with Shift
+const EPS = 1e-6
+const nudgeKey = (planId) => `packwise.nudge.${planId}`
+const readNudges = (planId) => { try { return JSON.parse(localStorage.getItem(nudgeKey(planId))) || {} } catch { return {} } }
+const saveNudges = (planId, v) => { try { localStorage.setItem(nudgeKey(planId), JSON.stringify(v)) } catch { /* ignore */ } }
+const r1 = (v) => Math.round(v * 10) / 10
+
+function applyNudges(placements, nudges) {
+  return placements.map((p) => {
+    const o = nudges[p.unit_ref]
+    return o ? { ...p, x: r1(p.x + o.dx), y: r1(p.y + o.dy) } : p
+  })
+}
+
+// Returns null if the move is allowed, otherwise a short reason.
+function blockedBy(moved, placements, carton) {
+  const [L, W] = carton
+  if (moved.x < -EPS || moved.y < -EPS || moved.x + moved.dx > L + EPS || moved.y + moved.dy > W + EPS) return 'the carton wall'
+  for (const q of placements) {
+    if (q.unit_ref === moved.unit_ref) continue
+    const ox = moved.x < q.x + q.dx - EPS && q.x < moved.x + moved.dx - EPS
+    const oy = moved.y < q.y + q.dy - EPS && q.y < moved.y + moved.dy - EPS
+    const oz = (moved.z || 0) < (q.z || 0) + q.dz - EPS && (q.z || 0) < (moved.z || 0) + moved.dz - EPS
+    if (ox && oy && oz) return q.product_name || q.name || 'another item'
+  }
+  return null
+}
+
+function describeNudge(o) {
+  if (!o || (Math.abs(o.dx) < EPS && Math.abs(o.dy) < EPS)) return 'At the planned spot'
+  const parts = []
+  if (Math.abs(o.dx) > EPS) parts.push(`${Math.abs(o.dx).toFixed(1)} cm ${o.dx > 0 ? 'right' : 'left'}`)
+  if (Math.abs(o.dy) > EPS) parts.push(`${Math.abs(o.dy).toFixed(1)} cm ${o.dy > 0 ? 'towards the front' : 'towards the back'}`)
+  return `Moved ${parts.join(', ')}`
+}
+
 
 function Progress({ slides, index, onJump }) {
   return (
@@ -37,7 +78,7 @@ function Stepper({ value, onChange, label, unit }) {
   )
 }
 
-function Finish({ plan, order, busy, error, onComplete }) {
+function Finish({ plan, order, busy, error, onComplete, placements }) {
   const fragile = plan.units.some((u) => u.fragile)
   const reserved = plan.reservations.filter((r) => r.item_type === 'material' && r.status === 'active')
   const mats = Object.fromEntries(plan.selected.materials.map((m) => [m.code, m]))
@@ -91,7 +132,7 @@ function Finish({ plan, order, busy, error, onComplete }) {
         </button>
       </div>
       <div className="finish-viz">
-        <Carton3D carton={plan.selected.carton.dims_cm} placements={plan.placements} colors={colorsFor(plan, order)} />
+        <Carton3D carton={plan.selected.carton.dims_cm} placements={placements} colors={colorsFor(plan, order)} />
       </div>
     </div>
   )
@@ -104,6 +145,30 @@ export default function PackSlides({ order, plan, slides, index, setIndex, busy,
   const slide = slides[Math.min(index, slides.length - 1)]
 
   const colors = useMemo(() => colorsFor(plan, order), [plan, order])
+
+  const [nudges, setNudges] = useState(() => readNudges(plan.id))
+  useEffect(() => { setNudges(readNudges(plan.id)) }, [plan.id])
+  const placed = useMemo(() => applyNudges(plan.placements, nudges), [plan.placements, nudges])
+  const [activeRef, setActiveRef] = useState(null)
+  const [nudgeMsg, setNudgeMsg] = useState('')
+  useEffect(() => { setActiveRef(onFinish ? null : slide.refs[0]); setNudgeMsg('') }, [index]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const nudge = (ddx, ddy) => {
+    if (!activeRef) return
+    const p = placed.find((q) => q.unit_ref === activeRef)
+    if (!p) return
+    const moved = { ...p, x: r1(p.x + ddx), y: r1(p.y + ddy) }
+    const hit = blockedBy(moved, placed, carton.dims_cm)
+    if (hit) { setNudgeMsg(`Can't move further: it would touch ${hit}`); return }
+    const base = plan.placements.find((q) => q.unit_ref === activeRef)
+    const next = { ...nudges, [activeRef]: { dx: r1(moved.x - base.x), dy: r1(moved.y - base.y) } }
+    setNudges(next); saveNudges(plan.id, next); setNudgeMsg('')
+  }
+  const resetNudge = () => {
+    const next = { ...nudges }
+    delete next[activeRef]
+    setNudges(next); saveNudges(plan.id, next); setNudgeMsg('')
+  }
   const currentRefs = useMemo(() => new Set(onFinish ? [] : slide.refs), [onFinish, slide])
   const doneRefs = useMemo(() => new Set(onFinish ? plan.placements.map((p) => p.unit_ref) : slide.earlierRefs), [onFinish, slide, plan])
 
@@ -112,10 +177,15 @@ export default function PackSlides({ order, plan, slides, index, setIndex, busy,
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) || document.querySelector('.modal')) return
       if ((e.key === 'ArrowRight' || e.key === 'Enter') && !onFinish) { e.preventDefault(); setIndex(index + 1) }
       if (e.key === 'ArrowLeft' && index > 0) { e.preventDefault(); setIndex(index - 1) }
+      if (!onFinish && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const step = e.shiftKey ? NUDGE_FINE_CM : NUDGE_CM
+        const move = { KeyW: [0, -step], KeyS: [0, step], KeyA: [-step, 0], KeyD: [step, 0] }[e.code]
+        if (move) { e.preventDefault(); nudge(...move) }
+      }
     }
     window.addEventListener('keydown', on)
     return () => window.removeEventListener('keydown', on)
-  }, [index, onFinish, setIndex])
+  }, [index, onFinish, setIndex, nudge])
 
   const pickView = (v) => { setView(v); saveView(v) }
 
@@ -130,7 +200,7 @@ export default function PackSlides({ order, plan, slides, index, setIndex, busy,
         </div>
       </div>
 
-      {onFinish ? <Finish plan={plan} order={order} busy={busy} error={error} onComplete={onComplete} /> : (
+      {onFinish ? <Finish plan={plan} order={order} busy={busy} error={error} onComplete={onComplete} placements={placed} /> : (
         <div className="slide" key={index}>
           <div className="slide-product">
             <div className="slide-top">
@@ -147,7 +217,9 @@ export default function PackSlides({ order, plan, slides, index, setIndex, busy,
             <ol className="todo">
               {slide.wrap && <li className="todo-wrap">{slide.wrap}</li>}
               {slide.spots.map((sp, k) => (
-                <li key={sp.ref} className="todo-place">
+                <li key={sp.ref} className="todo-place" onClick={() => { setActiveRef(sp.ref); setNudgeMsg('') }}
+                  aria-current={slide.qty > 1 && sp.ref === activeRef ? 'true' : undefined}
+                  style={slide.qty > 1 ? { cursor: 'pointer', outline: sp.ref === activeRef ? '2px solid currentColor' : 'none', borderRadius: 8 } : undefined}>
                   <span className="seqdot">{sp.seq}</span>
                   <div>
                     <b>{slide.qty > 1 ? `${k === 0 ? 'First' : k === 1 ? 'Second' : `No. ${k + 1}`}: ` : ''}{sp.headline}</b>
@@ -172,9 +244,14 @@ export default function PackSlides({ order, plan, slides, index, setIndex, busy,
               <button role="tab" aria-selected={view === '3d'} className={view === '3d' ? 'on' : ''} onClick={() => pickView('3d')}>3D</button>
             </div>
             {view === '3d'
-              ? <Carton3D carton={carton.dims_cm} placements={plan.placements} currentRefs={currentRefs} doneRefs={doneRefs} colors={colors} />
-              : <FloorPlan carton={carton.dims_cm} placements={plan.placements} currentRefs={currentRefs} doneRefs={doneRefs} names />}
+              ? <Carton3D carton={carton.dims_cm} placements={placed} currentRefs={currentRefs} doneRefs={doneRefs} colors={colors} />
+              : <FloorPlan carton={carton.dims_cm} placements={placed} currentRefs={currentRefs} doneRefs={doneRefs} names />}
             <p className="legend"><span className="lg-cur" />Place now <span className="lg-done" />Already in <span className="lg-ghost" />Comes later</p>
+            <p className="legend nudge-line" aria-live="polite">
+              <span>Fine-tune with W A S D: moves {slide.qty > 1 ? 'the selected one' : 'this item'} 0.5 cm (Shift: 1 mm).{' '}
+                {nudgeMsg || describeNudge(nudges[activeRef])}.</span>
+              {nudges[activeRef] && <button type="button" className="linkbtn" onClick={resetNudge}>Reset</button>}
+            </p>
           </div>
         </div>
       )}

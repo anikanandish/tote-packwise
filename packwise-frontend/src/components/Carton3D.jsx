@@ -261,13 +261,17 @@ export default function Carton3D({ carton, placements, currentRefs, doneRefs, co
     if (ctx.current) ctx.current.controls.autoRotate = autoRotate
   }, [autoRotate])
 
-  // rebuild the items whenever the step changes
+  // rebuild the items whenever the step changes (the drop animation plays only when the step
+  // changes, not when an item is nudged with W A S D)
+  const lastRefs = useRef(null)
   useEffect(() => {
     const c = ctx.current
     if (!c) return
     disposeGroup(c.itemGroup)
+    const stepChanged = lastRefs.current !== currentRefs
+    lastRefs.current = currentRefs
     c.state.drops = buildItems(c.itemGroup, carton, placements, {
-      currentRefs, doneRefs, colors, fragileRefs, dropFrom: c.reduce ? 0 : Math.max(2, c.H * 0.45),
+      currentRefs, doneRefs, colors, fragileRefs, dropFrom: c.reduce || !stepChanged ? 0 : Math.max(2, c.H * 0.45),
     })
     c.state.t0 = performance.now()
   }, [placements, currentRefs, doneRefs, colors, fragileRefs, key]) // eslint-disable-line react-hooks/exhaustive-deps

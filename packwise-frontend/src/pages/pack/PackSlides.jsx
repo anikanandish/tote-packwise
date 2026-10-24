@@ -40,15 +40,6 @@ function blockedBy(moved, placements, carton) {
   return null
 }
 
-function describeNudge(o) {
-  if (!o || (Math.abs(o.dx) < EPS && Math.abs(o.dy) < EPS)) return 'At the planned spot'
-  const parts = []
-  if (Math.abs(o.dx) > EPS) parts.push(`${Math.abs(o.dx).toFixed(1)} cm ${o.dx > 0 ? 'right' : 'left'}`)
-  if (Math.abs(o.dy) > EPS) parts.push(`${Math.abs(o.dy).toFixed(1)} cm ${o.dy > 0 ? 'towards the front' : 'towards the back'}`)
-  return `Moved ${parts.join(', ')}`
-}
-
-
 function Progress({ slides, index, onJump }) {
   return (
     <div className="progress" aria-label={`Step ${index + 1} of ${slides.length + 1}`}>
@@ -150,8 +141,7 @@ export default function PackSlides({ order, plan, slides, index, setIndex, busy,
   useEffect(() => { setNudges(readNudges(plan.id)) }, [plan.id])
   const placed = useMemo(() => applyNudges(plan.placements, nudges), [plan.placements, nudges])
   const [activeRef, setActiveRef] = useState(null)
-  const [nudgeMsg, setNudgeMsg] = useState('')
-  useEffect(() => { setActiveRef(onFinish ? null : slide.refs[0]); setNudgeMsg('') }, [index]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setActiveRef(onFinish ? null : slide.refs[0]) }, [index]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const nudge = (ddx, ddy) => {
     if (!activeRef) return
@@ -159,15 +149,10 @@ export default function PackSlides({ order, plan, slides, index, setIndex, busy,
     if (!p) return
     const moved = { ...p, x: r1(p.x + ddx), y: r1(p.y + ddy) }
     const hit = blockedBy(moved, placed, carton.dims_cm)
-    if (hit) { setNudgeMsg(`Can't move further: it would touch ${hit}`); return }
+    if (hit) return                                  // would leave the carton or overlap
     const base = plan.placements.find((q) => q.unit_ref === activeRef)
     const next = { ...nudges, [activeRef]: { dx: r1(moved.x - base.x), dy: r1(moved.y - base.y) } }
-    setNudges(next); saveNudges(plan.id, next); setNudgeMsg('')
-  }
-  const resetNudge = () => {
-    const next = { ...nudges }
-    delete next[activeRef]
-    setNudges(next); saveNudges(plan.id, next); setNudgeMsg('')
+    setNudges(next); saveNudges(plan.id, next)
   }
   const currentRefs = useMemo(() => new Set(onFinish ? [] : slide.refs), [onFinish, slide])
   const doneRefs = useMemo(() => new Set(onFinish ? plan.placements.map((p) => p.unit_ref) : slide.earlierRefs), [onFinish, slide, plan])
@@ -217,7 +202,7 @@ export default function PackSlides({ order, plan, slides, index, setIndex, busy,
             <ol className="todo">
               {slide.wrap && <li className="todo-wrap">{slide.wrap}</li>}
               {slide.spots.map((sp, k) => (
-                <li key={sp.ref} className="todo-place" onClick={() => { setActiveRef(sp.ref); setNudgeMsg('') }}
+                <li key={sp.ref} className="todo-place" onClick={() => setActiveRef(sp.ref)}
                   aria-current={slide.qty > 1 && sp.ref === activeRef ? 'true' : undefined}
                   style={slide.qty > 1 ? { cursor: 'pointer', outline: sp.ref === activeRef ? '2px solid currentColor' : 'none', borderRadius: 8 } : undefined}>
                   <span className="seqdot">{sp.seq}</span>
@@ -247,11 +232,6 @@ export default function PackSlides({ order, plan, slides, index, setIndex, busy,
               ? <Carton3D carton={carton.dims_cm} placements={placed} currentRefs={currentRefs} doneRefs={doneRefs} colors={colors} />
               : <FloorPlan carton={carton.dims_cm} placements={placed} currentRefs={currentRefs} doneRefs={doneRefs} names />}
             <p className="legend"><span className="lg-cur" />Place now <span className="lg-done" />Already in <span className="lg-ghost" />Comes later</p>
-            <p className="legend nudge-line" aria-live="polite">
-              <span>Fine-tune with W A S D: moves {slide.qty > 1 ? 'the selected one' : 'this item'} 0.5 cm (Shift: 1 mm).{' '}
-                {nudgeMsg || describeNudge(nudges[activeRef])}.</span>
-              {nudges[activeRef] && <button type="button" className="linkbtn" onClick={resetNudge}>Reset</button>}
-            </p>
           </div>
         </div>
       )}

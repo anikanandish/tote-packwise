@@ -66,13 +66,16 @@ export function ChangeCarton({ plan, busy, error, onOverride, onRecalculate, onC
 }
 
 function SpaceComparison({ plan, carton, placements, colors, fragileRefs }) {
+  // Compare with the NEXT bigger carton that also fits this order (the one that would be used
+  // otherwise), not the largest one. Falls back to the baseline carton if no other one fits.
   const larger = useMemo(() => {
+    const next = plan.evaluations
+      .filter((e) => e.status === 'feasible' && e.carton.id !== carton.id && e.carton.volume_cm3 > carton.volume_cm3)
+      .sort((a, b) => a.carton.volume_cm3 - b.carton.volume_cm3)[0]?.carton
+    if (next) return next
     const baseline = plan.baseline?.carton
     const baselineEval = plan.evaluations.find((e) => e.carton.id === baseline?.id)
-    if (baseline && baseline.volume_cm3 > carton.volume_cm3 && baselineEval?.physically_feasible) return baseline
-    return plan.evaluations
-      .filter((e) => e.status === 'feasible' && e.carton.volume_cm3 > carton.volume_cm3)
-      .sort((a, b) => b.carton.volume_cm3 - a.carton.volume_cm3)[0]?.carton || null
+    return baseline && baseline.volume_cm3 > carton.volume_cm3 && baselineEval?.physically_feasible ? baseline : null
   }, [plan, carton])
   if (!larger) return null
 
@@ -91,12 +94,12 @@ function SpaceComparison({ plan, carton, placements, colors, fragileRefs }) {
       <div className="space-compare-head">
         <p className="eyebrow">Same order · same safe placement</p>
         <h2 id="space-compare-title">Big carton vs. optimized carton</h2>
-        <p>See the extra space the larger box ships, next to the right-size carton for this order.</p>
+        <p>See the extra space the next bigger box would ship, next to the right-size carton for this order.</p>
       </div>
       <div className="space-compare-grid">
         <article className="compare-box compare-baseline">
           <div className="compare-box-head">
-            <div><span className="compare-kicker">Larger carton</span><h3>{larger.name}</h3></div>
+            <div><span className="compare-kicker">Next size up</span><h3>{larger.name}</h3></div>
             <span className="compare-volume">{litres(larger.volume_cm3)}</span>
           </div>
           <p className="compare-dims">{size(larger.dims_cm)}</p>

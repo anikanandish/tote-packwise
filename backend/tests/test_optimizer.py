@@ -1,5 +1,6 @@
 """The new optimizer (cpp-packer-service/original/optimizer.cpp) choosing among the warehouse cartons."""
 import httpx
+import pytest
 
 from conftest import DEMO
 
@@ -44,6 +45,7 @@ def test_engine_optimizer_mode_directly(packer_url):
                       ).json()["algorithm"] == "original"
 
 
+@pytest.mark.usefixtures("layered_optimizer")
 def test_demo_order_uses_optimizer(app_client, worker, place_order):
     plan = _recommend(app_client, worker, place_order(DEMO)["id"])
     assert plan["status"] == "recommended"
@@ -66,6 +68,7 @@ def test_demo_order_uses_optimizer(app_client, worker, place_order):
     assert plan["baseline"]["available"] is True
 
 
+@pytest.mark.usefixtures("layered_optimizer")
 def test_stacking_fits_what_one_layer_could_not(app_client, worker, place_order):
     # 12 notebooks do not fit side by side in any carton (see test_engine_rejects_floor_overflow);
     # the optimizer stacks them in layers.
@@ -75,6 +78,7 @@ def test_stacking_fits_what_one_layer_could_not(app_client, worker, place_order)
     _inside_and_apart(plan)
 
 
+@pytest.mark.usefixtures("layered_optimizer")
 def test_tall_item_with_cushion_still_rejected(app_client, worker, place_order):
     # Reed diffuser 220 mm tall + 30 mm cushion = 250 mm; tallest carton is 200 mm
     plan = _recommend(app_client, worker, place_order({"cedar-reed-diffuser": 1})["id"])

@@ -31,7 +31,7 @@ class Settings:
     admin_code_from_legacy: bool = not os.getenv("ADMIN_ACCESS_CODE") and bool(os.getenv("ADMIN_PASSWORD"))
     admin_login_max_failures: int = int(_float("ADMIN_LOGIN_MAX_FAILURES", 5))
     admin_login_lockout_s: float = _float("ADMIN_LOGIN_LOCKOUT_S", 300)
-    # Seed the eight standard cartons with SAMPLE stock and SAMPLE prices (flagged as sample
+    # Seed the standard cartons with SAMPLE stock and SAMPLE prices (flagged as sample
     # in the UI) so the demo can pack straight away. false = stock 0 and no price.
     seed_sample_carton_values: bool = os.getenv("SEED_SAMPLE_CARTON_VALUES", "true").lower() == "true"
 
@@ -44,13 +44,14 @@ class Settings:
     ])
 
     # Which packing algorithm chooses the carton for an order:
-    #   optimizer -> the new optimizer (cpp-packer-service/original/optimizer.cpp): rows, layers,
-    #                stacked layers, fixed 15 mm cushion on every side of fragile items
-    #   original  -> the original packer.cpp: one layer, padding from the product data
-    # To go back to the old algorithm set PACKING_ALGORITHM=original in backend/.env and restart.
-    packing_algorithm: str = (os.getenv("PACKING_ALGORITHM", "optimizer").strip().lower()
-                              if os.getenv("PACKING_ALGORITHM", "optimizer").strip().lower() in ("optimizer", "original")
-                              else "optimizer")
+    #   optimizer2 -> cushion optimizer (cpp-packer-service/original/optimizer2.cpp): one layer,
+    #                 fixed 7.5 mm cushion on every side of fragile items   [default]
+    #   optimizer  -> layered optimizer (original/optimizer.cpp): rows, stacked layers, 15 mm cushion
+    #   original   -> the original packer.cpp: one layer, padding from the product data
+    # Set PACKING_ALGORITHM in backend/.env and restart to switch.
+    packing_algorithm: str = (os.getenv("PACKING_ALGORITHM", "optimizer2").strip().lower()
+                              if os.getenv("PACKING_ALGORITHM", "optimizer2").strip().lower()
+                              in ("optimizer2", "optimizer", "original") else "optimizer2")
 
     # Packing rules (documented in README "Packing rules").
     fragile_min_padding_cm: float = _float("FRAGILE_MIN_PADDING_CM", 1.0)

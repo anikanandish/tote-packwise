@@ -12,7 +12,7 @@ from .models import AuditEvent, CartItem, Carton, Material, Product, Review, Use
 from .security import hash_password
 from .services import inventory
 
-# The eight standard carton sizes (nominal L x W x H in millimetres), exactly as specified.
+# The standard carton sizes (nominal L x W x H in millimetres). STD-01..08 exactly as specified.
 # Internal sizes start equal to the nominal sizes and are marked "not verified" until an
 # admin measures a real carton. Maximum weight is NOT set (no verified figure exists).
 SMALL_MAILERS = "E-commerce & retail small mailers"
@@ -27,12 +27,23 @@ STANDARD_CARTONS = [
     ("STD-06", "Medium Apparel / Electronics", SHIPPING_BOXES, 360, 250, 150),
     ("STD-07", "Large Multi-Item Box", SHIPPING_BOXES, 460, 360, 200),
     ("STD-08", "Heavy Gadget Carrier", SHIPPING_BOXES, 290, 280, 130),
+    # Eight more sizes added for the 16-carton warehouse. Common e-commerce sizes chosen to fill
+    # the gaps in the first eight (mostly height: tall bottles, jars and gift sets). Nominal sizes,
+    # not measured; stock and price are SAMPLE values like the first eight.
+    ("STD-09", "Tall Bottle Mailer", SMALL_MAILERS, 150, 100, 150),
+    ("STD-10", "Flat Book Mailer", SMALL_MAILERS, 250, 180, 50),
+    ("STD-11", "Tall Cosmetics Box", SMALL_MAILERS, 200, 150, 150),
+    ("STD-12", "Document / Flat Gift Box", SMALL_MAILERS, 320, 240, 60),
+    ("STD-13", "Cube Gift Box", SHIPPING_BOXES, 200, 200, 200),
+    ("STD-14", "Tall Vase / Diffuser Box", SHIPPING_BOXES, 120, 120, 250),
+    ("STD-15", "Medium Tall Box", SHIPPING_BOXES, 300, 200, 200),
+    ("STD-16", "Large Flat Box", SHIPPING_BOXES, 400, 300, 100),
 ]
 BASELINE_CODE = "STD-07"   # largest standard carton: the comparison for savings
 SAMPLE_STOCK, SAMPLE_MIN_STOCK = 40, 8
 
 # Cartons from earlier versions. Each set is switched off once when an older database is
-# upgraded, so only the eight standard sizes are used. History keeps its snapshots.
+# upgraded, so only the standard sizes are used. History keeps its snapshots.
 RETIRED_SETS = {
     "retire_legacy_cartons": ("CTN-S", "CTN-M", "CTN-L", "CTN-XL", "CTN-CUSTOM"),
     "retire_six_box_cartons": ("BOX-1", "BOX-2", "BOX-3", "BOX-4", "BOX-5", "BOX-6"),

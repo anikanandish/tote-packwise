@@ -38,13 +38,16 @@ def mm_down(cm: float) -> int:
     return math.floor(round(cm * 10, 4))
 
 
-# The optimizer (original/optimizer.cpp) puts a fixed cushion around every fragile item:
-# CUSHION_TOTAL = 30 mm per dimension, i.e. 15 mm on each side. The engine adds it itself, so
-# fragile items are sent WITHOUT padding and this value only describes what the engine did.
-OPTIMIZER_CUSHION_TOTAL_MM = 30
+# Both optimizers put a fixed cushion around every fragile item (mm added per dimension):
+#   optimizer  (original/optimizer.cpp):  CUSHION_TOTAL = 30 -> 15 mm on each side
+#   optimizer2 (original/optimizer2.cpp): CUSION_TOTAL  = 15 -> 7.5 mm on each side
+# The engine adds it itself, so fragile items are sent WITHOUT padding; these values only
+# describe what the engine did.
+ENGINE_CUSHION_TOTAL_MM = {"optimizer": 30, "optimizer2": 15}
 
 
 def optimizer_on() -> bool:
+    """True for the layered optimizer (the only algorithm that stacks)."""
     return settings.packing_algorithm == "optimizer"
 
 
@@ -67,11 +70,12 @@ def build_units(order: Order, algorithm: str = "original") -> tuple[list[dict], 
         if p.fragile and not p.protection_material_code:
             blockers.append(f"{p.name} is fragile but has no protective material configured. "
                             "An admin must set one before it can be packed.")
-        engine_cushion = algorithm == "optimizer" and p.fragile
+        cushion_total = ENGINE_CUSHION_TOTAL_MM.get(algorithm)
+        engine_cushion = cushion_total is not None and p.fragile
         if engine_cushion:
             # the optimizer's own rule replaces the product padding for fragile items
-            padding = OPTIMIZER_CUSHION_TOTAL_MM / 20
-            padding_rule = "optimizer_fragile_cushion"
+            padding = cushion_total / 20
+            padding_rule = f"{algorithm}_fragile_cushion"
         for k in range(line.quantity):
             pl, pw, ph = p.length_cm + 2 * padding, p.width_cm + 2 * padding, p.height_cm + 2 * padding
             bare_mm = [mm_up(p.length_cm), mm_up(p.width_cm), mm_up(p.height_cm)]
@@ -85,7 +89,7 @@ def build_units(order: Order, algorithm: str = "original") -> tuple[list[dict], 
                 "padding_cm": padding,
                 "padding_rule": padding_rule,
                 "padded_cm": [round(pl, 2), round(pw, 2), round(ph, 2)],
-                "padded_mm": ([d + OPTIMIZER_CUSHION_TOTAL_MM for d in bare_mm] if engine_cushion
+                "padded_mm": ([d + cushion_total for d in bare_mm] if engine_cushion
                               else [mm_up(pl), mm_up(pw), mm_up(ph)]),
                 # what is sent to the engine: the optimizer adds the fragile cushion itself
                 "engine_mm": bare_mm if engine_cushion else [mm_up(pl), mm_up(pw), mm_up(ph)],
@@ -283,7 +287,7 @@ def evaluate(db: Session, order: Order, only_carton_id: Optional[int] = None) ->
             to_pack.append({"id": f"C{c.id}", "l": snap["dims_mm"][0], "w": snap["dims_mm"][1], "h": snap["dims_mm"][2]})
 
     algorithm = settings.packing_algorithm
-    if algorithm == "optimizer":
+    if algorithm in ENGINE_CUSHION_TOTAL_MM:
         engine_items = [{"id": u["ref"], "l": u["engine_mm"][0], "w": u["engine_mm"][1], "h": u["engine_mm"][2],
                          "fragile": bool(u["fragile"])} for u in units]
     else:
@@ -302,7 +306,7 @@ def evaluate(db: Session, order: Order, only_carton_id: Optional[int] = None) ->
             ev = evaluations[int(res["carton_id"][1:])]
             ok = bool(res["fits"])
             ev["checks"].append({"name": "placement", "ok": ok,
-                                 "detail": ("Engine found a placement" if algorithm == "optimizer"
+                                 "detail": ("Engine found a layered placement" if algorithm == "optimizer"
                                             else "Engine found a single-layer placement") if ok
                                  else "Engine could not place every item"})
             if ok:
@@ -403,9 +407,12 @@ def evaluate(db: Session, order: Order, only_carton_id: Optional[int] = None) ->
                   "rounding": "product dimensions rounded up, carton dimensions rounded down to whole mm",
                   "algorithm": algorithm,
                   "engine_limits": ("optimizer: rows, then layers stacked up to the carton height (max 300 mm); "
-                                    f"fragile items get a {OPTIMIZER_CUSHION_TOTAL_MM // 2} mm cushion on every side; "
+                                    "fragile items get a 15 mm cushion on every side; "
                                     "items stay upright, 90° floor rotation only")
                   if algorithm == "optimizer" else
+                  ("optimizer2: single layer, no stacking; fragile items get a 7.5 mm cushion on every side; "
+                   "items stay upright, 90° floor rotation only")
+                  if algorithm == "optimizer2" else
                   "single layer, no stacking, items stay upright, 90° floor rotation only"},
         "evaluations": sorted(evaluations.values(), key=lambda ev: ev["carton"]["volume_cm3"]),
         "chosen_carton_id": chosen["carton"]["id"] if chosen else None,

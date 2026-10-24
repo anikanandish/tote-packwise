@@ -4,6 +4,7 @@
 //   GET  /health            -> service status and algorithm capabilities
 //   POST /v1/pack/cartons   -> evaluate items against one or more fixed cartons
 //                              "algorithm": "optimizer" -> new optimizer.cpp (layers, fragile cushion)
+//                              "algorithm": "optimizer2" -> optimizer2.cpp (one layer, 7.5 mm fragile cushion)
 //                              "algorithm": "original" or absent -> original packer.cpp
 //   POST /v1/pack/design    -> original behaviour: design a bounding box
 //
@@ -20,13 +21,14 @@
 #include "nlohmann/json.hpp"
 #include "packer_core.hpp"
 #include "optimizer_core.hpp"
+#include "optimizer2_core.hpp"
 
 using json = nlohmann::json;
 using namespace std;
 
 namespace {
 
-const char* kVersion = "1.2.0";
+const char* kVersion = "1.3.0";
 const long long kMaxDim = 100000;  // 100 m, in mm
 const size_t kMaxItems = 10000;    // same limit as the original main()
 const size_t kMaxCartons = 100;
@@ -52,7 +54,10 @@ json capabilities() {
             {"optimizer", {{"source", "original/optimizer.cpp"},
                            {"layers", "multiple (rows -> layers -> stacked layers)"},
                            {"fragile_cushion_mm", optimizer::CUSHION_TOTAL},
-                           {"max_height_mm", optimizer::MAX_H}}}}}};
+                           {"max_height_mm", optimizer::MAX_H}}},
+            {"optimizer2", {{"source", "original/optimizer2.cpp"},
+                            {"layers", "single"},
+                            {"fragile_cushion_mm", optimizer2::CUSION_TOTAL}}}}}};
 }
 
 void sendError(httplib::Response& res, int status, const string& code,
@@ -189,6 +194,53 @@ json optimizerCartonResult(const vector<packer::Item>& in, const vector<bool>& f
     return r;
 }
 
+// NEW: one carton evaluated with optimizer2 (original/optimizer2.cpp). Fragile items arrive
+// without cushion; pack() adds CUSION_TOTAL itself. Placements = the space each item takes,
+// cushion included, in the carton frame (one layer, so z = 0).
+json optimizer2CartonResult(const vector<packer::Item>& in, const vector<bool>& fragile,
+                            const vector<string>& ids, const string& cid,
+                            long long L, long long W, long long H) {
+    vector<optimizer2::Item> items;
+    for (size_t i = 0; i < in.size(); ++i) {
+        optimizer2::Item it{in[i].l, in[i].w, in[i].h, in[i].id};
+        it.fragile = fragile[i];
+        items.push_back(it);
+    }
+    optimizer2::CartonFit fit = optimizer2::fitCarton(items, L, W, H);
+    json attempts = json::array();
+    for (const auto& a : fit.attempts) {
+        json aj{{"orientation", a.orientation}, {"target_width", a.targetWidth},
+                {"row_limit", a.rowLimit}, {"fits", a.fits},
+                {"widths_tried", a.widthsTried}, {"widths_that_fit", a.widthsThatFit}};
+        if (a.fits) aj["best_width"] = a.bestWidth; else aj["reason"] = a.reason;
+        if (a.fits) aj["used"] = {{"row_width", a.result.W}, {"rows_depth", a.result.L}, {"height", a.result.H}};
+        attempts.push_back(aj);
+    }
+    json r{{"carton_id", cid}, {"carton", {{"l", L}, {"w", W}, {"h", H}}},
+           {"fits", fit.fits}, {"attempts", attempts}};
+    if (!fit.fits) return r;
+    const auto& a = fit.attempts[fit.chosen];
+    const bool swapAxes = a.orientation == "rows_along_width";
+    json placements = json::array();
+    int seq = 1;
+    for (int id : fit.sequence) {
+        const auto& p = a.result.p[id];
+        const long long pad = fragile[id] ? optimizer2::CUSION_TOTAL : 0;
+        const long long al = p.l + pad, aw = p.w + pad, ah = p.h + pad;
+        const long long x = swapAxes ? p.y : p.x, y = swapAxes ? p.x : p.y;
+        const long long dx = swapAxes ? aw : al, dy = swapAxes ? al : aw;
+        placements.push_back({{"id", ids[id]}, {"seq", seq++}, {"x", x}, {"y", y}, {"z", 0},
+                              {"dx", dx}, {"dy", dy}, {"dz", ah}, {"rotated", p.rotated},
+                              {"cushion_mm", static_cast<double>(pad) / 2}});
+    }
+    r["orientation"] = a.orientation;
+    r["used"] = {{"x", swapAxes ? a.result.L : a.result.W}, {"y", swapAxes ? a.result.W : a.result.L},
+                 {"z", a.result.H}};
+    r["score"] = static_cast<double>(a.result.score);
+    r["placements"] = placements;
+    return r;
+}
+
 void handleCartons(const httplib::Request& req, httplib::Response& res) {
     const auto t0 = chrono::steady_clock::now();
     json body;
@@ -204,8 +256,8 @@ void handleCartons(const httplib::Request& req, httplib::Response& res) {
             if (!body.at("algorithm").is_string())
                 throw BadRequest{"invalid_algorithm", "'algorithm' must be \"original\" or \"optimizer\""};
             algorithm = body.at("algorithm").get<string>();
-            if (algorithm != "original" && algorithm != "optimizer")
-                throw BadRequest{"invalid_algorithm", "'algorithm' must be \"original\" or \"optimizer\""};
+            if (algorithm != "original" && algorithm != "optimizer" && algorithm != "optimizer2")
+                throw BadRequest{"invalid_algorithm", "'algorithm' must be \"original\", \"optimizer\" or \"optimizer2\""};
         }
         vector<string> ids;
         vector<bool> fragile;
@@ -228,6 +280,10 @@ void handleCartons(const httplib::Request& req, httplib::Response& res) {
 
             if (algorithm == "optimizer") {
                 results.push_back(optimizerCartonResult(items, fragile, ids, cid, L, W, H));
+                continue;
+            }
+            if (algorithm == "optimizer2") {
+                results.push_back(optimizer2CartonResult(items, fragile, ids, cid, L, W, H));
                 continue;
             }
 

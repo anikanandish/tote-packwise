@@ -15,7 +15,7 @@ Four separate programs: two React + Vite frontends (the PackWise one also contai
 
 ## 1. What your `packer.cpp` does (inspected first)
 
-> PackWise now packs with the new **optimizer** by default; see "The new optimizer" below. This section describes the original algorithm, still available with `PACKING_ALGORITHM=original`.
+> PackWise now packs with the **cushion optimizer (optimizer2)** and 16 cartons by default; see below. This section describes the original algorithm, still available with `PACKING_ALGORITHM=original`.
 
 | Question | Answer from the source |
 |---|---|
@@ -31,7 +31,15 @@ Four separate programs: two React + Vite frontends (the PackWise one also contai
 
 The UI says this plainly: plans are drawn as a single layer, and nothing is ever shown stacked.
 
-### The new optimizer (`optimizer.cpp`) — now the default
+### The cushion optimizer (`optimizer2.cpp`) — the default
+
+`cpp-packer-service/original/optimizer2.cpp` is the original `packer.cpp` row heuristic plus a fixed **15 mm** cushion per dimension (7.5 mm on every side) for fragile items. One layer, no stacking, 90° floor rotation only. `pack()` and the 200-width search are copied verbatim into `src/optimizer2_core.cpp` (`design()` matches the compiled original on 500 random inputs); `optimizer2::fitCarton()` runs that search inside each warehouse carton. Fragile items are sent without padding (`fragile: true`); other items keep their product padding. Smallest carton that fits wins.
+
+**16 standard cartons.** STD-09 to STD-16 were added to fill the size gaps of the first eight (mostly height): Tall Bottle Mailer 150×100×150, Flat Book Mailer 250×180×50, Tall Cosmetics Box 200×150×150, Document / Flat Gift Box 320×240×60, Cube Gift Box 200×200×200, Tall Vase / Diffuser Box 120×120×250, Medium Tall Box 300×200×200, Large Flat Box 400×300×100 (mm, nominal, not measured; sample stock and prices like the first eight). They are added automatically to an existing database on the next start.
+
+Switch algorithm in `backend\.env`: `PACKING_ALGORITHM=optimizer2` (default), `optimizer` (layered, below) or `original`.
+
+### The layered optimizer (`optimizer.cpp`)
 
 | Question | Answer from the source (`cpp-packer-service/original/optimizer.cpp`) |
 |---|---|

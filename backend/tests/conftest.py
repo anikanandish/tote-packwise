@@ -58,7 +58,7 @@ def app_client(request, tmp_path, packer_url, monkeypatch):
     monkeypatch.setattr(settings, "admin_access_code", ADMIN_CODE)
     monkeypatch.setattr(settings, "seed_demo_order", False)
     monkeypatch.setattr(settings, "seed_sample_carton_values", True)
-    monkeypatch.setattr(settings, "packing_algorithm", "optimizer")   # the shipped default
+    monkeypatch.setattr(settings, "packing_algorithm", "optimizer2")   # the shipped default
     from app.security import admin_throttle
     admin_throttle._fails.clear()
     database.configure(f"sqlite:///{(tmp_path / 'test.db').as_posix()}")
@@ -66,7 +66,17 @@ def app_client(request, tmp_path, packer_url, monkeypatch):
     from fastapi.testclient import TestClient
     from app.main import app
     with TestClient(app) as c:
+        if not request.node.get_closest_marker("sixteen_cartons"):
+            # Most tests were written for the first eight standard cartons; keep them on that set.
+            from app.models import Carton
+            with database.SessionLocal() as db:
+                db.query(Carton).filter(Carton.code.in_(EXTRA_CARTONS)).update(
+                    {Carton.is_active: False, Carton.is_predefined: False}, synchronize_session=False)
+                db.commit()
         yield c
+
+
+EXTRA_CARTONS = [f"STD-{n:02d}" for n in range(9, 17)]
 
 
 ADMIN_CODE = "Test-Admin-Code-9"
@@ -128,3 +138,14 @@ def original_algorithm(app_client, monkeypatch):
     """Run a test with the original packer.cpp algorithm (PACKING_ALGORITHM=original)."""
     from app.config import settings
     monkeypatch.setattr(settings, "packing_algorithm", "original")
+
+
+@pytest.fixture()
+def layered_optimizer(app_client, monkeypatch):
+    """Run a test with the layered optimizer (PACKING_ALGORITHM=optimizer)."""
+    from app.config import settings
+    monkeypatch.setattr(settings, "packing_algorithm", "optimizer")
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "sixteen_cartons: run with all 16 standard cartons active")

@@ -5,6 +5,7 @@
 
 #include "../src/packer_core.hpp"
 #include "../src/optimizer_core.hpp"
+#include "../src/optimizer2_core.hpp"
 
 using namespace packer;
 
@@ -151,6 +152,20 @@ int main() {
         // 13. optimizeDesign() packs and scores like the program.
         O::Result d = O::optimizeDesign({{100, 70, 140, 0}, {25, 25, 85, 1, true}});
         CHECK(d.success && d.W >= 180 && d.L >= 100 && d.H >= 50);
+    }
+    // ---------------- optimizer2 (original/optimizer2.cpp) ----------------
+    {
+        namespace P = optimizer2;
+        std::vector<P::Item> items = {{100, 70, 125, 0}, {60, 40, 130, 1}, {25, 25, 85, 2}, {80, 50, 120, 3, true}};
+        P::CartonFit f = P::fitCarton(items, 360, 250, 150);
+        CHECK(f.fits);
+        const auto& a = f.attempts[f.chosen];
+        CHECK(a.result.W <= a.targetWidth && a.result.L <= a.rowLimit && a.result.H <= 150);
+        CHECK(a.result.H == 135);                                  // fragile 120 + 15 cushion
+        // too tall once the cushion is added: 120 + 15 > 130
+        std::vector<P::Item> tall = {{80, 50, 120, 0, true}};
+        CHECK(!P::fitCarton(tall, 300, 200, 130).fits);
+        CHECK(P::fitCarton(tall, 300, 200, 135).fits);
     }
     if (failures == 0) std::cout << "All core tests passed\n";
     return failures == 0 ? 0 : 1;

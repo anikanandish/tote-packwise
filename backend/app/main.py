@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from . import database
 from .config import settings
@@ -20,18 +21,31 @@ log = logging.getLogger("tote")
 
 
 def init_db():
-    from . import migrate
-    for step in migrate.run(database.engine):
-        print(f"Database migration applied: {step}")
-    Base.metadata.create_all(bind=database.engine)
-    db = database.SessionLocal()
+    # Serverless platforms can cold-start several API instances together. Serialize
+    # schema setup and seeding on Postgres so they do not race on unique catalogue keys.
+    startup_lock = None
+    if database.engine.dialect.name == "postgresql":
+        startup_lock = database.engine.connect()
+        startup_lock.execute(text("SELECT pg_advisory_lock(741920261025)"))
     try:
-        from .seed import seed
-        info = seed(db)
-        if info.get("demo_order"):
-            print(f"Seeded demo order {info['demo_order']}")
+        from . import migrate
+        for step in migrate.run(database.engine):
+            print(f"Database migration applied: {step}")
+        Base.metadata.create_all(bind=database.engine)
+        db = database.SessionLocal()
+        try:
+            from .seed import seed
+            info = seed(db)
+            if info.get("demo_order"):
+                print(f"Seeded demo order {info['demo_order']}")
+        finally:
+            db.close()
     finally:
-        db.close()
+        if startup_lock is not None:
+            try:
+                startup_lock.execute(text("SELECT pg_advisory_unlock(741920261025)"))
+            finally:
+                startup_lock.close()
     if not settings.worker_code:
         print("WARNING: PACKWISE_WORKER_CODE is not set - worker sign-in is disabled until you set it in backend/.env")
     if settings.admin_code_from_legacy:

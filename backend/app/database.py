@@ -12,17 +12,20 @@ class Base(DeclarativeBase):
 
 
 def make_engine(url: str):
-    if url.startswith("sqlite:///"):
-        Path(url.replace("sqlite:///", "")).parent.mkdir(parents=True, exist_ok=True)
-    elif url.startswith(("postgres://", "postgresql://")):
-        # Use psycopg 3 explicitly; SQLAlchemy's default PostgreSQL driver is psycopg2.
-        url = url.replace("postgres://", "postgresql+psycopg://", 1).replace(
-            "postgresql://", "postgresql+psycopg://", 1
-        )
-    connect_args = {"check_same_thread": False, "timeout": 30} if url.startswith("sqlite:///") else {}
-    engine = create_engine(url, connect_args=connect_args, pool_pre_ping=True)
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+psycopg://", 1)
+    elif url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
 
-    if engine.dialect.name == "sqlite":
+    is_sqlite = url.startswith("sqlite:")
+    if is_sqlite and url.startswith("sqlite:///"):
+        Path(url.replace("sqlite:///", "")).parent.mkdir(parents=True, exist_ok=True)
+    engine_options = {"pool_pre_ping": True}
+    if is_sqlite:
+        engine_options["connect_args"] = {"check_same_thread": False, "timeout": 30}
+    engine = create_engine(url, **engine_options)
+
+    if is_sqlite:
         @event.listens_for(engine, "connect")
         def _sqlite_pragmas(dbapi_conn, _):
             cur = dbapi_conn.cursor()

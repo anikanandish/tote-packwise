@@ -177,9 +177,10 @@ details { margin-top: 12px; } summary { cursor: pointer; font-weight: 600; }
 .side-group { font-size: .78rem; color: var(--lav); margin: 18px 12px 6px; font-weight: 600; }
 .side-user { border-top: 1px solid var(--ink-3); padding-top: 14px; font-size: .9rem; }
 .side-user span { color: var(--lav); }
-.logo { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.25rem; font-stretch: 112%; color: var(--ink); letter-spacing: -.01em; }
-.logo-light { color: var(--peach-ivory); }
-.logo svg { color: var(--peach); }
+.logo { position: relative; display: inline-block; flex: 0 0 94px; width: 94px; height: 100px; overflow: hidden; border-radius: 6px; background: #fff; line-height: 0; }
+.logo img { position: absolute; top: -32px; left: -96px; display: block; width: 287px; max-width: none; height: auto; }
+.land-foot .logo { flex-basis: 70.5px; width: 70.5px; height: 75px; }
+.land-foot .logo img { top: -24px; left: -72px; width: 215px; }
 .main { min-width: 0; }
 .topbar { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 6px clamp(16px, 3vw, 40px) 0; color: var(--text); }
 .topbar .burger { display: inline-grid; place-items: center; background: var(--white); border: 1px solid var(--line); color: var(--ink); }

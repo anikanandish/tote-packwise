@@ -26,10 +26,11 @@ export default function Checkout() {
   const toast = useToast()
   const nav = useNavigate()
   const saved = readSaved(user)
-  const [f, setF] = useState(() => ({ name: user.name, email: user.email, phone: '', line1: '', line2: '', city: '', state: '',
-    postal_code: '', ...(saved ? Object.fromEntries(FIELDS.filter((k) => saved[k]).map((k) => [k, saved[k]])) : {}) }))
+  // Everything is filled in automatically: the last order's details if there are any, otherwise the sample details.
+  const [f, setF] = useState(() => ({ name: user.name, email: user.email, ...SAMPLE,
+    ...(saved ? Object.fromEntries(FIELDS.filter((k) => saved[k]).map((k) => [k, saved[k]])) : {}) }))
   const [method, setMethod] = useState(saved?.method || 'card')
-  const [confirm, setConfirm] = useState(!!saved)
+  const [confirm, setConfirm] = useState(true)
   const fillSample = () => { setF({ ...f, ...SAMPLE, name: f.name || user.name, email: f.email || user.email }); setConfirm(true); setErrors({}) }
   const [errors, setErrors] = useState({})
   const [busy, setBusy] = useState(false)
@@ -75,7 +76,7 @@ export default function Checkout() {
         <div className="checkout-form">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
             <button type="button" className="btn btn-ghost" onClick={fillSample}>Fill sample details</button>
-            {saved && <span className="muted">Filled in from your last order.</span>}
+            <span className="muted">{saved ? 'Filled in from your last order.' : 'Filled in with sample details.'}</span>
           </div>
           <fieldset>
             <legend>Contact</legend>

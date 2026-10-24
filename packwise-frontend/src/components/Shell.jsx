@@ -34,7 +34,6 @@ export default function Shell() {
         <nav onClick={() => setOpen(false)}>
           <p className="side-group">Packing</p>
           <NavLink to="/queue">Order queue</NavLink>
-          <NavLink to="/simulate">Algorithm simulator</NavLink>
           {isAdmin && (<>
             <p className="side-group">Admin</p>
             <NavLink to="/admin">Admin console ↗</NavLink>

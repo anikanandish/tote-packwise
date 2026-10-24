@@ -19,7 +19,7 @@ export default function Queue() {
   const refresh = () => { summary.reload(); orders.reload() }
 
   return (
-    <div className="pagepad">
+    <div className="pagepad worker-dashboard">
       <div className="page-head">
         <div><h1>Order queue</h1><p className="muted">Priority first, then fragile, then oldest. Open any order and the carton is chosen for you.</p></div>
         <div className="head-badges">
@@ -64,8 +64,8 @@ export default function Queue() {
       )}
       {orders.data?.length > 0 && (
         <ul className="queue">
-          {orders.data.map((o) => (
-            <li key={o.id}>
+          {orders.data.map((o, index) => (
+            <li key={`${tab}:${o.id}`} style={{ '--queue-delay': `${Math.min(index, 10) * 45}ms` }}>
               <Link to={`/orders/${o.id}`} className={`qrow ${o.priority ? 'prio' : ''} ${o.fragile ? 'frag' : ''}`}>
                 <div className="qrow-main">
                   <p className="qrow-code">{o.code}</p>

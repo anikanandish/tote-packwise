@@ -26,8 +26,9 @@ def packer_health():
         raise HTTPException(503, str(e))
 
 
-PREVIEW_SLUGS = [("rose-oud-eau-de-parfum", 1), ("gentle-nail-polish-remover", 1),
-                 ("precision-liquid-eyeliner", 2), ("velvet-matte-lipstick", 1)]
+# Two fragile products make the clearance around each one visible in the smallest
+# standard carton that safely fits both.
+PREVIEW_SLUGS = [("cloud-cream-moisturiser", 1), ("satin-glow-highlighter", 1)]
 
 
 @router.get("/api/public/engine-preview", tags=["Public"],

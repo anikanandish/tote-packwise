@@ -29,7 +29,8 @@ export async function api(path, { method = 'GET', body, auth = true } = {}) {
   if (auth && token) headers.Authorization = `Bearer ${token}`
   let res
   try {
-    res = await fetch(API_URL + path, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined })
+    const url = /^https?:\/\//i.test(path) ? path : API_URL + path
+    res = await fetch(url, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined, cache: 'no-store' })
   } catch {
     throw new ApiError(0, `Cannot reach the PackWise API at ${API_URL}. Check that the backend is running.`)
   }

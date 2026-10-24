@@ -143,10 +143,10 @@ function buildItems(group, carton, placements, { currentRefs, doneRefs, colors, 
       // the size of the slot the algorithm reserved (it is real, occupied space).
       const shell = new THREE.Mesh(new THREE.BoxGeometry(p.dx, p.dz, p.dy),
         new THREE.MeshStandardMaterial({ color: st === 'current' ? PEACH : 0xF4F1F8, transparent: true,
-          opacity: st === 'current' ? 0.28 : 0.38, roughness: 0.3, depthWrite: false }))
+          opacity: st === 'current' ? 0.4 : 0.58, roughness: 0.3, depthWrite: false }))
       shell.position.set(cx, p.dz / 2, cz)
       const shellEdge = new THREE.LineSegments(new THREE.EdgesGeometry(shell.geometry),
-        new THREE.LineBasicMaterial({ color: st === 'current' ? PEACH : LAV, transparent: true, opacity: 0.6 }))
+        new THREE.LineBasicMaterial({ color: PEACH, transparent: true, opacity: 0.95 }))
       shell.add(shellEdge)
       group.add(shell)
     }
@@ -255,7 +255,11 @@ export default function Carton3D({ carton, placements, currentRefs, doneRefs, co
       host.removeChild(renderer.domElement)
       ctx.current = null
     }
-  }, [ok, key, frameKey, theme, autoRotate]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ok, key, frameKey, theme]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (ctx.current) ctx.current.controls.autoRotate = autoRotate
+  }, [autoRotate])
 
   // rebuild the items whenever the step changes
   useEffect(() => {

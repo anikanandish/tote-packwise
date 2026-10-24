@@ -1,0 +1,14 @@
+# Local runtime and dependency artifacts
+**/node_modules/
+**/dist/
+**/.venv/
+**/__pycache__/
+**/*.py[cod]
+backend/data/
+.runtime/
+**/pnpm-lock.yaml
+**/pnpm-workspace.yaml
+
+# Local configuration and secrets
+**/.env
+**/.env.local

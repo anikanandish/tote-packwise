@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..models import CartItem, Order, OrderEvent, OrderItem, Product, User
-from . import audit
+from . import audit, sustainability
 
 
 def new_order_code(db: Session) -> str:
@@ -63,6 +63,9 @@ def checkout(db: Session, user: User, contact: dict, address: dict, payment: dic
         order.subtotal = round(subtotal, 2)
         order.shipping = shipping_for(subtotal)
         order.total = round(order.subtotal + order.shipping, 2)
+        # Persist a best-effort sustainability snapshot with the destination. A failed estimate
+        # must not block checkout; the order still succeeds and the confirmation explains why.
+        order.address = {**address, "sustainability": sustainability.estimate(db, lines, address)}
         db.add(OrderEvent(order_id=order.id, status="placed", note="Order placed (simulated payment)",
                           actor=f"customer:{user.email}"))
         actor = f"customer:{user.email}"

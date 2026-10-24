@@ -100,7 +100,7 @@ def single_row(units: list[dict]) -> dict:
 def stock_carton(db: Session, units: list[dict]) -> dict:
     """No algorithm choosing the size: the smallest catalogue carton the items fit in."""
     cartons = [c for c in db.query(Carton).filter(Carton.is_active.is_(True)).all()
-               if c.code != settings.custom_box_code]
+               if c.code not in (settings.custom_box_code, settings.made_to_measure_code)]
     cartons.sort(key=lambda c: c.volume_mm3)
     weight = sum(u["weight_g"] for u in units)
     candidates = [c for c in cartons if (c.max_weight_g is None or c.max_weight_g >= weight)

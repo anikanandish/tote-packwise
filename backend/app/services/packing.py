@@ -133,7 +133,9 @@ def accept(db: Session, plan_id: int, actor: str) -> PackingPlan:
     if not carton or not carton.is_active:
         _conflict("The selected carton is no longer active. Request a new recommendation.")
     snap_dims = selected["carton"]["dims_cm"]
-    if [carton.length_cm, carton.width_cm, carton.height_cm] != snap_dims or carton.max_weight_g != selected["carton"]["max_weight_g"]:
+    made_to_measure = bool(selected.get("made_to_measure"))   # cut to the plan's own size; no fixed dims to compare
+    if not made_to_measure and ([carton.length_cm, carton.width_cm, carton.height_cm] != snap_dims
+                                or carton.max_weight_g != selected["carton"]["max_weight_g"]):
         _conflict("The carton's dimensions or weight limit changed since this plan was calculated. "
                   "Request a new recommendation.")
 

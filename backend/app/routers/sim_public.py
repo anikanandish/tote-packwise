@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/public", tags=["Public"])
 @router.get("/sim-data", summary="Products, cartons, rules and anonymised recent orders for the simulator website")
 def sim_data(db: Session = Depends(get_db)):
     products = db.query(Product).filter(Product.is_active.is_(True)).order_by(Product.category, Product.name).all()
-    cartons = (db.query(Carton).filter(Carton.is_active.is_(True), Carton.code != settings.custom_box_code)
+    cartons = (db.query(Carton).filter(Carton.is_active.is_(True), Carton.code != settings.custom_box_code, Carton.code != settings.made_to_measure_code)
                .order_by(Carton.length_mm * Carton.width_mm * Carton.height_mm).all())
     orders = db.query(Order).order_by(Order.id.desc()).limit(40).all()
     return {

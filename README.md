@@ -39,6 +39,8 @@ The UI says this plainly: plans are drawn as a single layer, and nothing is ever
 
 Switch algorithm in `backend\.env`: `PACKING_ALGORITHM=optimizer2` (default), `optimizer` (layered, below) or `original`.
 
+**Made-to-measure box, edge cases only.** With `optimizer2`, the backend also asks the engine for the box the algorithm designs itself (`/v1/pack/design` with `"algorithm": "optimizer2"`). If no stock carton fits, or the smallest stock carton that fits is more than `CUSTOM_BOX_WHEN_STOCK_OVER` (default **1.5**) times that volume, the order gets a **Made-to-measure box** (`MTM-BOX`) cut to the design; otherwise the stock carton is used. Its price is the board-area estimate (sample). `CUSTOM_BOX_WHEN_STOCK_OVER=0` turns it off.
+
 ### The layered optimizer (`optimizer.cpp`)
 
 | Question | Answer from the source (`cpp-packer-service/original/optimizer.cpp`) |

@@ -59,6 +59,8 @@ def app_client(request, tmp_path, packer_url, monkeypatch):
     monkeypatch.setattr(settings, "seed_demo_order", False)
     monkeypatch.setattr(settings, "seed_sample_carton_values", True)
     monkeypatch.setattr(settings, "packing_algorithm", "optimizer2")   # the shipped default
+    if not request.node.get_closest_marker("made_to_measure"):
+        monkeypatch.setattr(settings, "custom_box_when_stock_over", 0)   # stock cartons only
     from app.security import admin_throttle
     admin_throttle._fails.clear()
     database.configure(f"sqlite:///{(tmp_path / 'test.db').as_posix()}")
@@ -149,3 +151,4 @@ def layered_optimizer(app_client, monkeypatch):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "sixteen_cartons: run with all 16 standard cartons active")
+    config.addinivalue_line("markers", "made_to_measure: allow made-to-measure boxes for edge cases")

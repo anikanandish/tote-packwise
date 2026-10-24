@@ -50,10 +50,14 @@ def pack_cartons(items: list[dict], cartons: list[dict], algorithm: str | None =
     return data
 
 
-def design(items: list[dict]) -> dict:
-    """Original packer.cpp behaviour: design the smallest-scoring box for the items (mm)."""
+def design(items: list[dict], algorithm: str | None = None) -> dict:
+    """Design the smallest-scoring box for the items (mm). algorithm=None: original packer.cpp;
+    "optimizer2": optimizer2.cpp's own design (fragile cushion added by the engine)."""
+    body = {"items": items}
+    if algorithm:
+        body["algorithm"] = algorithm
     try:
-        r = httpx.post(_url("/v1/pack/design"), json={"items": items}, timeout=settings.packer_timeout_s)
+        r = httpx.post(_url("/v1/pack/design"), json=body, timeout=settings.packer_timeout_s)
     except httpx.HTTPError as e:
         raise PackerUnavailable(f"Packing service at {settings.packer_url} is not reachable ({e.__class__.__name__}).")
     try:

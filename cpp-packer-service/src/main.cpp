@@ -342,7 +342,39 @@ void handleDesign(const httplib::Request& req, httplib::Response& res) {
     try {
         if (!body.is_object()) throw BadRequest{"malformed_json", "Request body must be a JSON object"};
         vector<string> ids;
-        vector<packer::Item> items = parseItems(body, ids);
+        vector<bool> fragile;
+        vector<packer::Item> items = parseItems(body, ids, &fragile);
+        if (body.contains("algorithm") && body.at("algorithm") == "optimizer2") {
+            // NEW: made-to-measure box from optimizer2's own design() (original main() search).
+            // Box: W along the rows (carton length), L across them (carton width), H cushion included.
+            // Placements: the space each item takes, cushion included, in that box frame.
+            vector<optimizer2::Item> o;
+            for (size_t i = 0; i < items.size(); ++i) {
+                optimizer2::Item it{items[i].l, items[i].w, items[i].h, items[i].id};
+                it.fragile = fragile[i];
+                o.push_back(it);
+            }
+            optimizer2::Result r = optimizer2::design(o);
+            if (r.p.empty() || !std::isfinite(static_cast<double>(r.score)))
+                return sendError(res, 422, "no_solution", "The algorithm did not find a placement");
+            vector<optimizer2::Item> order = o;
+            optimizer2::sortLikeOptimizer2(order);
+            json placements = json::array();
+            int seq = 1;
+            for (const auto& it : order) {
+                const auto& p = r.p[it.id];
+                const long long pad = it.fragile ? optimizer2::CUSION_TOTAL : 0;
+                placements.push_back({{"id", ids[it.id]}, {"seq", seq++}, {"x", p.x}, {"y", p.y}, {"z", 0},
+                                      {"dx", p.l + pad}, {"dy", p.w + pad}, {"dz", p.h + pad},
+                                      {"rotated", p.rotated}, {"cushion_mm", static_cast<double>(pad) / 2}});
+            }
+            return res.set_content(json{{"engine", {{"name", "packwise-packer"}, {"version", kVersion}}},
+                                        {"mode", "design"}, {"algorithm", "optimizer2"},
+                                        {"box", {{"W", r.W}, {"L", r.L}, {"H", r.H}}},
+                                        {"score", static_cast<double>(r.score)},
+                                        {"placements", placements}}.dump(),
+                                   "application/json");
+        }
         packer::Result best = packer::design(items);
         if (best.p.empty() || !std::isfinite(static_cast<double>(best.score)))
             return sendError(res, 422, "no_solution", "The algorithm did not find a placement");

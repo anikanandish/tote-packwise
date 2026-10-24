@@ -61,6 +61,12 @@ class Settings:
     # Earlier versions had a made-to-measure box (code below); it is no longer used for packing.
     # The board-cost figures remain for the simulator's "algorithm's ideal box" comparison.
     custom_box_code: str = os.getenv("CUSTOM_BOX_CODE", "CTN-CUSTOM")
+    # Made-to-measure box for EDGE CASES (optimizer2 only): when no stock carton fits, or the
+    # smallest stock carton that fits is more than CUSTOM_BOX_WHEN_STOCK_OVER times the volume of
+    # the box the algorithm designs itself, the order gets a box cut to that design instead.
+    # Otherwise the stock carton is used. 0 turns made-to-measure boxes off.
+    made_to_measure_code: str = os.getenv("MADE_TO_MEASURE_CODE", "MTM-BOX")
+    custom_box_when_stock_over: float = _float("CUSTOM_BOX_WHEN_STOCK_OVER", 1.5)
     board_cost_per_m2: float = _float("BOARD_COST_PER_M2", 100)   # INR per m2 of corrugated board
     box_make_cost: float = _float("BOX_MAKE_COST", 2)               # INR per box (machine time, tape)
 

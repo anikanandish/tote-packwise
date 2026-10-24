@@ -227,8 +227,9 @@ def evaluate(db: Session, order: Order, only_carton_id: Optional[int] = None) ->
     materials = {m.code: m for m in db.query(Material).all()}
     all_cartons = db.query(Carton).order_by(Carton.unit_cost.is_(None), Carton.unit_cost, Carton.id).all()
     # Retired cartons from earlier versions are left out; switched-off standard cartons are listed.
-    cartons = [c for c in all_cartons if c.code != settings.custom_box_code
+    cartons = [c for c in all_cartons if c.code not in (settings.custom_box_code, settings.made_to_measure_code)
                and (c.is_active or c.is_predefined or c.is_baseline)]
+    mtm_carton = next((c for c in all_cartons if c.code == settings.made_to_measure_code), None)
     baseline = next((c for c in cartons if c.is_baseline), None)
 
     product_volume = sum(u["dims_cm"][0] * u["dims_cm"][1] * u["dims_cm"][2] for u in units)
@@ -367,9 +368,17 @@ def evaluate(db: Session, order: Order, only_carton_id: Optional[int] = None) ->
     feasible.sort(key=lambda ev: (ev["carton"]["volume_cm3"], ev["cost"]["total"] is None, ev["cost"]["total"] or 0))
     chosen = feasible[0] if feasible else None
 
+    custom_ev, design_response = None, None
+    if only_carton_id is None:
+        custom_ev, design_response = _made_to_measure(mtm_carton, chosen, units, blockers, materials,
+                                                      engine_items, product_volume, padded_volume, total_weight)
+        if custom_ev:
+            evaluations[mtm_carton.id] = custom_ev
+            chosen = custom_ev
+
     baseline_info = _baseline(evaluations, baseline, chosen)
 
-    if chosen:
+    if chosen and chosen is not custom_ev:
         c = chosen["carton"]
         smaller = [ev for ev in evaluations.values() if ev is not chosen and ev["status"] not in ("feasible", "inactive")
                    and ev["carton"]["volume_cm3"] <= c["volume_cm3"]]
@@ -417,11 +426,72 @@ def evaluate(db: Session, order: Order, only_carton_id: Optional[int] = None) ->
         "evaluations": sorted(evaluations.values(), key=lambda ev: ev["carton"]["volume_cm3"]),
         "chosen_carton_id": chosen["carton"]["id"] if chosen else None,
         "baseline": baseline_info,
+        "made_to_measure": ({"box_mm": [design_response["box"]["W"], design_response["box"]["L"],
+                                         design_response["box"]["H"]],
+                             "used": custom_ev is not None,
+                             "rule": f"used when no stock carton fits or the smallest one is over "
+                                     f"{settings.custom_box_when_stock_over:g}x this volume"}
+                            if design_response else None),
         "engine": {"request": engine_request,
                    "response_meta": {k: v for k, v in (engine_response or {}).items() if k != "results"},
                    # the C++ service's JSON results, unedited (one entry per carton sent to it)
                    "response_results": (engine_response or {}).get("results", [])},
     }
+
+
+def _made_to_measure(mtm: Optional[Carton], stock: Optional[dict], units: list[dict], blockers: list[str],
+                     materials: dict, engine_items: list[dict], product_volume: float, padded_volume: float,
+                     total_weight: int):
+    """EDGE CASES ONLY: a box cut to optimizer2's own design. Returns (evaluation or None, design response)."""
+    ratio = settings.custom_box_when_stock_over
+    if (settings.packing_algorithm != "optimizer2" or ratio <= 0 or not units or blockers
+            or mtm is None or not mtm.is_active):
+        return None, None
+    try:
+        d = packer_client.design(engine_items, "optimizer2")
+    except packer_client.PackerError:
+        return None, None
+    if d.get("algorithm") != "optimizer2":
+        return None, None
+    W, L, H = d["box"]["W"], d["box"]["L"], d["box"]["H"]
+    volume_cm3 = round(W * L * H / 1000, 1)
+    if stock is not None and stock["carton"]["volume_cm3"] <= ratio * volume_cm3:
+        return None, d                                   # the stock carton is close enough: no need
+    dims_cm = [W / 10, L / 10, H / 10]
+    snap = carton_snapshot(mtm)
+    board = custom_box_cost(dims_cm)
+    snap.update({"name": "Made-to-measure box", "dims_cm": dims_cm, "dims_mm": [W, L, H], "nominal_mm": [W, L, H],
+                 "volume_cm3": volume_cm3, "unit_cost": board["unit_cost"], "internal_verified": False,
+                 "sample_fields": sorted(set(snap["sample_fields"]) | {"unit_cost"}), "is_baseline": False})
+    mat_lines = material_plan(units, volume_cm3, materials)
+    stock_ok = snap["available"] >= 1
+    mat_ok = all(ln["exists"] and ln["active"] and ln["available"] >= ln["quantity"] for ln in mat_lines)
+    if not (stock_ok and mat_ok):
+        return None, d
+    why = ([f"No stock carton holds this order, so a box is cut to the algorithm's design: "
+            f"{' × '.join(str(x) for x in [W, L, H])} mm"] if stock is None else
+           [f"Made-to-measure box {' × '.join(str(x) for x in [W, L, H])} mm ({volume_cm3 / 1000:.2f} L): the smallest "
+            f"stock carton that fits, {stock['carton']['name']} ({stock['carton']['volume_cm3'] / 1000:.1f} L), is "
+            f"{stock['carton']['volume_cm3'] / volume_cm3:.1f}x that volume"])
+    why.append(f"Board cost estimate: {board['rule']}")
+    ev = {"carton": snap, "reasons": [], "status": "feasible", "physically_feasible": True,
+          "checks": [{"name": "active", "ok": True, "detail": "Made-to-measure boxes enabled"},
+                     {"name": "dimensions", "ok": True, "detail": "Box is cut to the algorithm's layout"},
+                     {"name": "weight", "ok": True, "not_checked": True,
+                      "detail": f"{total_weight} g; no weight limit configured for made-to-measure boxes"},
+                     {"name": "placement", "ok": True, "detail": "Engine designed the box around a single layer"},
+                     {"name": "carton_stock", "ok": True, "detail": f"{snap['available']} board blanks available"},
+                     {"name": "materials", "ok": True, "detail": "Protective materials available"}],
+          "warnings": ["Made-to-measure box: the size comes from the packing algorithm and the board cost is an "
+                       "estimate (sample price)."],
+          "placement": {"orientation": "rows_along_length", "used_mm": {"x": W, "y": L, "z": H},
+                        "placements": d["placements"], "attempts": [], "search": None},
+          "materials": mat_lines, "cost": price(board["unit_cost"], mat_lines),
+          "utilization": round(product_volume / volume_cm3, 4) if volume_cm3 else None,
+          "void_cm3": round(volume_cm3 - product_volume, 1),
+          "padded_fill": round(min(1, padded_volume / volume_cm3), 4) if volume_cm3 else None,
+          "short_reason": None, "why": why, "made_to_measure": True}
+    return ev, d
 
 
 def _alternatives(evaluations: dict, units: list[dict], blockers: list[str], total_weight: int) -> list[dict]:

@@ -73,3 +73,38 @@ def test_reed_diffuser_now_has_a_carton(app_client, worker, place_order):
     plan = _recommend(app_client, worker, place_order({"cedar-reed-diffuser": 1})["id"])
     assert plan["status"] == "recommended" and plan["carton"]["code"] == "STD-14"
     _inside_and_apart(plan)
+
+
+# ---------------------------------------------------------------- made-to-measure (edge cases only)
+@pytest.mark.made_to_measure
+def test_close_fit_keeps_the_stock_carton(app_client, worker, place_order):
+    # the demo order fits a stock carton well: no made-to-measure box
+    plan = _recommend(app_client, worker, place_order(DEMO)["id"])
+    assert plan["carton"]["code"].startswith("STD-")
+
+
+@pytest.mark.made_to_measure
+def test_poor_fit_gets_a_made_to_measure_box(app_client, worker, place_order):
+    # candle + notebook: best stock carton is 290 x 280 x 130 mm, far bigger than needed
+    plan = _recommend(app_client, worker, place_order({"amber-soy-candle": 1, "dot-grid-notebook": 1})["id"])
+    assert plan["status"] == "recommended"
+    assert plan["carton"]["code"] == "MTM-BOX" and plan["carton"]["name"] == "Made-to-measure box"
+    W, L, H = plan["carton"]["dims_mm"]
+    best_stock = min(e["carton"]["volume_cm3"] for e in plan["evaluations"]
+                     if e["status"] == "feasible" and e["carton"]["code"].startswith("STD-"))
+    assert best_stock > 1.5 * W * L * H / 1000
+    assert "unit_cost" in plan["carton"]["sample_fields"]
+    _inside_and_apart(plan)
+    # it can be accepted (stock reserved) like any carton
+    acc = app_client.post(f"/api/packwise/plans/{plan['id']}/accept", headers=worker)
+    assert acc.status_code == 200, acc.text
+
+
+@pytest.mark.made_to_measure
+def test_no_stock_carton_fits_gets_a_made_to_measure_box(app_client, worker, admin, place_order):
+    # switch off the only carton tall enough for the diffuser
+    cid = next(c["id"] for c in app_client.get("/api/admin/cartons", headers=admin).json() if c["code"] == "STD-14")
+    assert app_client.patch(f"/api/admin/cartons/{cid}", json={"is_active": False}, headers=admin).status_code == 200
+    plan = _recommend(app_client, worker, place_order({"cedar-reed-diffuser": 1})["id"])
+    assert plan["status"] == "recommended" and plan["carton"]["code"] == "MTM-BOX"
+    assert plan["carton"]["dims_mm"][2] == 235            # 220 mm + 15 mm cushion

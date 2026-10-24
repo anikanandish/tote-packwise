@@ -44,7 +44,7 @@ def engine_preview(db: Session = Depends(get_db)):
     from ..config import settings
     meta = {u["ref"]: u for u in units}
     try:
-        cartons = [c for c in db.query(Carton).filter(Carton.is_active.is_(True)).all() if c.code != settings.custom_box_code]
+        cartons = [c for c in db.query(Carton).filter(Carton.is_active.is_(True)).all() if c.code not in (settings.custom_box_code, settings.made_to_measure_code)]
         cartons.sort(key=lambda c: c.volume_mm3)
         resp = packer_client.pack_cartons(
             [{"id": u["ref"], "l": u["padded_mm"][0], "w": u["padded_mm"][1], "h": u["padded_mm"][2]} for u in units],

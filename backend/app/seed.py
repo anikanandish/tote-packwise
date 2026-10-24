@@ -198,6 +198,22 @@ def seed(db: Session) -> dict:
         db.add(c)
         db.flush()
         inventory.initial(db, "carton", c, actor, "Seed stock (SAMPLE quantity)" if sample else "Seed (no stock)")
+    # Made-to-measure boxes (edge cases only, see CUSTOM_BOX_WHEN_STOCK_OVER). One catalogue row stands
+    # for the board blanks; each plan carries its own size and an estimated board price.
+    if not db.query(Carton).filter(Carton.code == settings.made_to_measure_code).first():
+        sample = settings.seed_sample_carton_values
+        c = Carton(code=settings.made_to_measure_code, name="Made-to-measure box", category="Cut to size per order",
+                   nominal_length_mm=1, nominal_width_mm=1, nominal_height_mm=1,
+                   length_mm=1, width_mm=1, height_mm=1, internal_verified=False, max_weight_g=None,
+                   unit_cost=None, stock=200 if sample else 0, min_stock=20 if sample else 0,
+                   is_predefined=False, is_baseline=False,
+                   sample_fields=["stock", "min_stock"] if sample else [],
+                   notes="Board blanks for boxes cut to the packing algorithm's own design. The size is set per "
+                         "order (shown on the plan) and priced with the board-area estimate. Used only when no "
+                         "stock carton fits or the best one is much larger than needed.")
+        db.add(c)
+        db.flush()
+        inventory.initial(db, "carton", c, actor, "Seed stock (SAMPLE quantity)" if sample else "Seed (no stock)")
     for action, codes in RETIRED_SETS.items():
         if db.query(AuditEvent).filter(AuditEvent.action == action).first():
             continue

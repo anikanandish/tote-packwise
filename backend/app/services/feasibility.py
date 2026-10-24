@@ -231,6 +231,11 @@ def evaluate(db: Session, order: Order, only_carton_id: Optional[int] = None) ->
                and (c.is_active or c.is_predefined or c.is_baseline)]
     mtm_carton = next((c for c in all_cartons if c.code == settings.made_to_measure_code), None)
     baseline = next((c for c in cartons if c.is_baseline), None)
+    # Box numbers 1..N in size order (smallest first) for the standard cartons, so the number a
+    # worker sees always matches the order of the carton shelf.
+    numbered = sorted((c for c in cartons if c.is_predefined),
+                      key=lambda c: (c.length_mm * c.width_mm * c.height_mm, c.code))
+    box_no = {c.id: i + 1 for i, c in enumerate(numbered)}
 
     product_volume = sum(u["dims_cm"][0] * u["dims_cm"][1] * u["dims_cm"][2] for u in units)
     padded_volume = sum(u["padded_cm"][0] * u["padded_cm"][1] * u["padded_cm"][2] for u in units)
@@ -250,6 +255,7 @@ def evaluate(db: Session, order: Order, only_carton_id: Optional[int] = None) ->
         if only_carton_id is not None and c.id != only_carton_id and not c.is_baseline:
             continue
         snap = carton_snapshot(c)
+        snap["box_no"] = box_no.get(c.id)
         ev = {"carton": snap, "checks": [], "reasons": [], "warnings": [], "placement": None, "materials": [],
               "cost": None, "status": "rejected"}
         evaluations[c.id] = ev
@@ -377,6 +383,8 @@ def evaluate(db: Session, order: Order, only_carton_id: Optional[int] = None) ->
             chosen = custom_ev
 
     baseline_info = _baseline(evaluations, baseline, chosen)
+    if baseline_info.get("carton"):
+        baseline_info["carton"]["box_no"] = box_no.get(baseline_info["carton"]["id"])
 
     if chosen and chosen is not custom_ev:
         c = chosen["carton"]

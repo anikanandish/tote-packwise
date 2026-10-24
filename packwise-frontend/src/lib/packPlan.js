@@ -159,8 +159,10 @@ export function fillOf(plan) {
   return { floor: Math.min(1, footprint / (L * W)), padded: Math.min(1, padded / vol), product: plan.utilization ?? null }
 }
 
-// Shelf number of one of the six warehouse cartons ("BOX-2" -> "2"), or null.
+// Shelf number of a standard warehouse carton: its position by size (1 = smallest), sent by the
+// backend as box_no. Older plans without box_no fall back to the number in the code ("STD-02" -> "2").
 export function boxNo(carton) {
+  if (carton?.box_no) return String(carton.box_no)
   const m = /^(?:BOX|STD)-0*(\d+)$/i.exec(carton?.code || '')
   return m ? m[1] : null
 }

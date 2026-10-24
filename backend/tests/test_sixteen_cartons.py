@@ -108,3 +108,11 @@ def test_no_stock_carton_fits_gets_a_made_to_measure_box(app_client, worker, adm
     plan = _recommend(app_client, worker, place_order({"cedar-reed-diffuser": 1})["id"])
     assert plan["status"] == "recommended" and plan["carton"]["code"] == "MTM-BOX"
     assert plan["carton"]["dims_mm"][2] == 235            # 220 mm + 15 mm cushion
+
+
+def test_box_numbers_follow_size_order(app_client, worker, place_order):
+    plan = _recommend(app_client, worker, place_order(DEMO)["id"])
+    std = sorted((e["carton"] for e in plan["evaluations"] if e["carton"]["code"].startswith("STD-")),
+                 key=lambda c: (c["volume_cm3"], c["code"]))
+    assert [c["box_no"] for c in std] == list(range(1, 17))
+    assert plan["carton"]["box_no"] == next(c["box_no"] for c in std if c["code"] == plan["carton"]["code"])

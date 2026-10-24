@@ -78,26 +78,47 @@ function seededRandom(seed) {
   }
 }
 
+const fitsIn = (layout, L, W) => layout.every((p) => p.x >= 0 && p.y >= 0 && p.x + p.dx <= L + 1e-6 && p.y + p.dy <= W + 1e-6)
+const clash = (a, list) => list.some((q) => a.x < q.x + q.dx - 1e-6 && q.x < a.x + a.dx - 1e-6 && a.y < q.y + q.dy - 1e-6 && q.y < a.y + a.dy - 1e-6)
+
 function randomLayout(placements, dims, seed) {
-  if (!dims) return placements
+  if (!dims || !placements.length) return placements
   const [L, W] = dims
   const rnd = seededRandom(seed)
   const order = [...placements].sort((a, b) => b.dx * b.dy - a.dx * a.dy)   // big items first
-  const out = []
-  for (const p of order) {
-    let done = false
-    for (let tries = 0; tries < 400 && !done; tries++) {
-      const turn = rnd() < 0.5
-      const dx = turn ? p.dy : p.dx, dy = turn ? p.dx : p.dy
-      if (dx > L || dy > W) continue
-      const x = Math.round(rnd() * (L - dx) * 10) / 10, y = Math.round(rnd() * (W - dy) * 10) / 10
-      const hit = out.some((q) => x < q.x + q.dx && q.x < x + dx && y < q.y + q.dy && q.y < y + dy)
-      if (!hit) { out.push({ ...p, x, y, z: 0, dx, dy, rotated: turn ? !p.rotated : p.rotated }); done = true }
+  // Several full attempts; each spot is either fully random or pushed against a wall or another item.
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const out = []
+    let ok = true
+    for (const p of order) {
+      let done = false
+      for (let tries = 0; tries < 300 && !done; tries++) {
+        const turn = rnd() < 0.5
+        const dx = turn ? p.dy : p.dx, dy = turn ? p.dx : p.dy
+        if (dx > L + 1e-6 || dy > W + 1e-6) continue
+        const xs = [0, L - dx, ...out.map((q) => q.x + q.dx), ...out.map((q) => q.x - dx)]
+        const ys = [0, W - dy, ...out.map((q) => q.y + q.dy), ...out.map((q) => q.y - dy)]
+        const snap = rnd() < 0.5
+        let x = snap ? xs[Math.floor(rnd() * xs.length)] : rnd() * (L - dx)
+        let y = snap ? ys[Math.floor(rnd() * ys.length)] : rnd() * (W - dy)
+        x = Math.round(Math.min(Math.max(x, 0), L - dx) * 10) / 10
+        y = Math.round(Math.min(Math.max(y, 0), W - dy) * 10) / 10
+        const cand = { ...p, x, y, z: 0, dx, dy, rotated: turn ? !p.rotated : p.rotated }
+        if (!clash(cand, out)) { out.push(cand); done = true }
+      }
+      if (!done) { ok = false; break }
     }
-    if (!done) return placements          // could not scatter everything: show the algorithm's layout
+    if (ok) {
+      const byRef = Object.fromEntries(out.map((q) => [q.unit_ref, q]))
+      return placements.map((q) => byRef[q.unit_ref])
+    }
   }
-  const byRef = Object.fromEntries(out.map((p) => [p.unit_ref, p]))
-  return placements.map((p) => byRef[p.unit_ref])
+  // Could not scatter: use the algorithm's layout if it fits this box (as is, or turned 90°).
+  const flat = placements.map((p) => ({ ...p, z: 0 }))
+  if (fitsIn(flat, L, W)) return flat
+  const turned = flat.map((p) => ({ ...p, x: p.y, y: p.x, dx: p.dy, dy: p.dx, rotated: !p.rotated }))
+  if (fitsIn(turned, L, W)) return turned
+  return []                                   // never draw items outside the box
 }
 
 function SpaceComparison({ plan, carton, placements, colors, fragileRefs }) {

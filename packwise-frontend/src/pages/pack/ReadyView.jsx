@@ -65,6 +65,41 @@ export function ChangeCarton({ plan, busy, error, onOverride, onRecalculate, onC
   )
 }
 
+// The "next size up" box shows the items placed the way a person might drop them in without
+// the algorithm: random spots and turns on the floor, never overlapping and never outside the
+// box. Seeded by the order so the picture stays the same on every visit.
+function seededRandom(seed) {
+  let t = seed >>> 0
+  return () => {
+    t += 0x6D2B79F5
+    let r = Math.imul(t ^ (t >>> 15), 1 | t)
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r)
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function randomLayout(placements, dims, seed) {
+  if (!dims) return placements
+  const [L, W] = dims
+  const rnd = seededRandom(seed)
+  const order = [...placements].sort((a, b) => b.dx * b.dy - a.dx * a.dy)   // big items first
+  const out = []
+  for (const p of order) {
+    let done = false
+    for (let tries = 0; tries < 400 && !done; tries++) {
+      const turn = rnd() < 0.5
+      const dx = turn ? p.dy : p.dx, dy = turn ? p.dx : p.dy
+      if (dx > L || dy > W) continue
+      const x = Math.round(rnd() * (L - dx) * 10) / 10, y = Math.round(rnd() * (W - dy) * 10) / 10
+      const hit = out.some((q) => x < q.x + q.dx && q.x < x + dx && y < q.y + q.dy && q.y < y + dy)
+      if (!hit) { out.push({ ...p, x, y, z: 0, dx, dy, rotated: turn ? !p.rotated : p.rotated }); done = true }
+    }
+    if (!done) return placements          // could not scatter everything: show the algorithm's layout
+  }
+  const byRef = Object.fromEntries(out.map((p) => [p.unit_ref, p]))
+  return placements.map((p) => byRef[p.unit_ref])
+}
+
 function SpaceComparison({ plan, carton, placements, colors, fragileRefs }) {
   // Compare with the NEXT bigger carton that also fits this order (the one that would be used
   // otherwise), not the largest one. Falls back to the baseline carton if no other one fits.
@@ -77,6 +112,8 @@ function SpaceComparison({ plan, carton, placements, colors, fragileRefs }) {
     const baselineEval = plan.evaluations.find((e) => e.carton.id === baseline?.id)
     return baseline && baseline.volume_cm3 > carton.volume_cm3 && baselineEval?.physically_feasible ? baseline : null
   }, [plan, carton])
+  const scattered = useMemo(() => randomLayout(placements, larger?.dims_cm, plan.id || 1),
+    [placements, larger, plan.id])
   if (!larger) return null
 
   const packedVolume = (plan.units || []).reduce((sum, unit) =>
@@ -104,7 +141,7 @@ function SpaceComparison({ plan, carton, placements, colors, fragileRefs }) {
           </div>
           <p className="compare-dims">{size(larger.dims_cm)}</p>
           <div className="compare-scene">
-            <Carton3D carton={larger.dims_cm} frameDims={frameDims} placements={placements}
+            <Carton3D carton={larger.dims_cm} frameDims={frameDims} placements={scattered}
               fragileRefs={fragileRefs} colors={colors} className="c3d-compare" />
           </div>
           <p className="compare-caption">About {litres(largerEmpty)} of carton volume remains around the items.</p>

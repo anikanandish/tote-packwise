@@ -134,6 +134,17 @@
 .placed { background: var(--wine); color: var(--ivory); padding: var(--s6); margin-bottom: var(--s6); }
 .placed h1 { color: var(--ivory); font-style: italic; }
 .placed .muted { color: #f0d9d5; }
+.placed-impact { margin-top: var(--s5); padding: var(--s5); background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.22); }
+.placed-impact h2 { color: var(--ivory); margin: 0 0 var(--s3); font-size: var(--t-xl); }
+.placed-impact > p { margin-bottom: var(--s3); }
+.impact-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); margin: var(--s4) 0; }
+.impact-metrics div { display: flex; flex-direction: column; gap: 4px; padding: var(--s3); background: rgba(255,255,255,.09); }
+.impact-metrics strong { font-size: var(--t-lg); }
+.impact-metrics span, .impact-note, .impact-details { color: #f0d9d5; font-size: var(--t-sm); }
+.impact-details { margin-top: var(--s3); }
+.impact-details summary { cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.impact-details p { margin: var(--s2) 0 0; }
+@media (max-width: 600px) { .impact-metrics { grid-template-columns: 1fr; } }
 .track-head { display: flex; justify-content: space-between; align-items: center; gap: var(--s4); padding: var(--s4) 0; border-top: 1px solid var(--charcoal); border-bottom: 1px solid var(--line); }
 .track-head p { margin: 0; }
 .track-status { font-family: var(--display); font-size: var(--t-2xl); }

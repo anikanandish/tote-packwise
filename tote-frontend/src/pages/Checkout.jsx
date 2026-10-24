@@ -6,13 +6,14 @@ import { useShop } from '../context/ShopContext'
 import { useToast } from '../context/ToastContext'
 import { api, fieldErrors } from '../lib/api'
 import { money } from '../lib/format'
+import { COUNTRIES, LOCATIONS } from '../lib/locations'
 
 // Checkout autofill: the details of the last order placed in this browser are filled in again,
 // and "Fill sample details" fills a clearly fake demo address for quick demos.
 const SAVED_KEY = (user) => `tote.checkout.${user?.id ?? user?.email ?? 'guest'}`
 const SAMPLE = { phone: '9876543210', line1: '12 MG Road', line2: 'Demo building, 2nd floor', city: 'Bengaluru',
-  state: 'Karnataka', postal_code: '560001' }
-const FIELDS = ['name', 'email', 'phone', 'line1', 'line2', 'city', 'state', 'postal_code']
+  country: 'India', state: 'Karnataka', postal_code: '560001' }
+const FIELDS = ['name', 'email', 'phone', 'line1', 'line2', 'city', 'country', 'state', 'postal_code']
 function readSaved(user) {
   try { return JSON.parse(localStorage.getItem(SAVED_KEY(user))) || null } catch { return null }
 }
@@ -43,6 +44,10 @@ export default function Checkout() {
   if (!cart.items.length && !placed.current) return <Navigate to="/cart" replace />
 
   const up = (k) => (e) => setF({ ...f, [k]: e.target.value })
+  const changeCountry = (e) => {
+    const country = e.target.value
+    setF({ ...f, country, state: LOCATIONS[country][0] })
+  }
   const submit = async (e) => {
     e.preventDefault()
     setErrors({}); setFormError('')
@@ -54,7 +59,7 @@ export default function Checkout() {
         headers: { 'Idempotency-Key': idemKey.current },
         body: {
           contact: { name: f.name, email: f.email, phone: f.phone },
-          address: { line1: f.line1, line2: f.line2, city: f.city, state: f.state, postal_code: f.postal_code, country: 'India' },
+          address: { line1: f.line1, line2: f.line2, city: f.city, state: f.state, postal_code: f.postal_code, country: f.country },
           payment: { method, confirm_simulated: confirm },
         },
       })
@@ -90,11 +95,25 @@ export default function Checkout() {
             <legend>Delivery address</legend>
             <Field label="Address" error={errors.line1}><input className="input" value={f.line1} onChange={up('line1')} autoComplete="address-line1" required /></Field>
             <Field label="Apartment, floor (optional)" error={errors.line2}><input className="input" value={f.line2} onChange={up('line2')} autoComplete="address-line2" /></Field>
-            <div className="three">
-              <Field label="City" error={errors.city}><input className="input" value={f.city} onChange={up('city')} autoComplete="address-level2" required /></Field>
-              <Field label="State" error={errors.state}><input className="input" value={f.state} onChange={up('state')} autoComplete="address-level1" required /></Field>
-              <Field label="PIN code" error={errors.postal_code}><input className="input" value={f.postal_code} onChange={up('postal_code')} autoComplete="postal-code" inputMode="numeric" required /></Field>
+            <div className="two">
+              <Field label="Country" error={errors.country}>
+                <select className="input" value={f.country} onChange={changeCountry} autoComplete="country-name" required>
+                  {COUNTRIES.map((country) => <option key={country} value={country}>{country}</option>)}
+                </select>
+              </Field>
+              <Field label="State / province / region" error={errors.state}>
+                <select className="input" value={f.state} onChange={up('state')} autoComplete="address-level1" required>
+                  {(LOCATIONS[f.country] || []).map((state) => <option key={state} value={state}>{state}</option>)}
+                </select>
+              </Field>
             </div>
+            <div className="two">
+              <Field label="City" error={errors.city}><input className="input" value={f.city} onChange={up('city')} autoComplete="address-level2" required /></Field>
+              <Field label={f.country === 'India' ? 'PIN code' : 'Postal code'} error={errors.postal_code}>
+                <input className="input" value={f.postal_code} onChange={up('postal_code')} autoComplete="postal-code" required />
+              </Field>
+            </div>
+            <p className="field-hint">Choose a country and state/region. Delivery-impact figures are planning estimates from the Pune warehouse.</p>
           </fieldset>
           <fieldset>
             <legend>Payment</legend>

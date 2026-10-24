@@ -47,6 +47,24 @@ export function OrderTrack() {
           <h1>Thank you — your order is in.</h1>
           <p>We have sent it to our warehouse to be packed. Your order number is <strong>{o.code}</strong>.</p>
           <p className="muted small">Simulated payment reference {o.payment_ref}. No money was charged.</p>
+          {o.address.sustainability?.available ? (
+            <section className="placed-impact" aria-label="Estimated delivery impact saved">
+              <h2>Estimated impact saved</h2>
+              <p>For delivery from <strong>{o.address.sustainability.warehouse}</strong> to <strong>{o.address.sustainability.destination}</strong> (about {o.address.sustainability.distance_km.toLocaleString()} km), right-sizing against the {o.address.sustainability.baseline_carton} reference carton is estimated to save:</p>
+              <div className="impact-metrics">
+                <div><strong>{(o.address.sustainability.delivery_co2e_saved_kg * 1000).toFixed(0)} g</strong><span>CO₂e in delivery</span></div>
+                <div><strong>{o.address.sustainability.cardboard_saved_m2.toFixed(4)} m²</strong><span>corrugated cardboard</span></div>
+                <div><strong>{o.address.sustainability.kraft_sheets_saved}</strong><span>kraft void-fill sheets</span></div>
+              </div>
+              <details className="impact-details">
+                <summary>How this estimate is calculated</summary>
+                <p>It compares the packing engine’s designed box with the {o.address.sustainability.baseline_carton} reference carton. Cardboard area is converted to mass using a demo assumption of 0.55 kg/m²; kraft void-fill uses 10 g per sheet. Delivery savings use packaging mass saved × estimated distance × an Indian small-commercial-vehicle freight factor. Bubble wrap and other item-protection requirements are unchanged.</p>
+                <p>Distances are approximate. For international destinations, the country-level distance proxy and Indian road-freight factor are illustrative only; this is not a carrier route or measured footprint. The final carton and materials are confirmed when the warehouse packs the order.</p>
+              </details>
+            </section>
+          ) : (
+            <p className="impact-note">Delivery-impact estimate unavailable for this order: {o.address.sustainability?.reason || 'no estimate was saved.'}</p>
+          )}
         </div>
       )}
       {!params.get('placed') && <h1>Order {o.code}</h1>}
@@ -84,7 +102,7 @@ export function OrderTrack() {
         </section>
         <section>
           <h2>Delivering to</h2>
-          <p>{o.contact.name}<br />{o.address.line1}{o.address.line2 && <><br />{o.address.line2}</>}<br />{o.address.city}, {o.address.state} {o.address.postal_code}</p>
+          <p>{o.contact.name}<br />{o.address.line1}{o.address.line2 && <><br />{o.address.line2}</>}<br />{o.address.city}, {o.address.state} {o.address.postal_code}<br />{o.address.country}</p>
         </section>
       </div>
       <Link to="/orders" className="link-u">All orders</Link>

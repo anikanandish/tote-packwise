@@ -43,6 +43,15 @@ class Settings:
         ).split(",") if o.strip()
     ])
 
+    # Which packing algorithm chooses the carton for an order:
+    #   optimizer -> the new optimizer (cpp-packer-service/original/optimizer.cpp): rows, layers,
+    #                stacked layers, fixed 15 mm cushion on every side of fragile items
+    #   original  -> the original packer.cpp: one layer, padding from the product data
+    # To go back to the old algorithm set PACKING_ALGORITHM=original in backend/.env and restart.
+    packing_algorithm: str = (os.getenv("PACKING_ALGORITHM", "optimizer").strip().lower()
+                              if os.getenv("PACKING_ALGORITHM", "optimizer").strip().lower() in ("optimizer", "original")
+                              else "optimizer")
+
     # Packing rules (documented in README "Packing rules").
     fragile_min_padding_cm: float = _float("FRAGILE_MIN_PADDING_CM", 1.0)
     void_fill_material_code: str = os.getenv("VOID_FILL_MATERIAL_CODE", "KRAFT")

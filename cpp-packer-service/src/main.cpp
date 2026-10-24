@@ -3,6 +3,8 @@
 // Endpoints (all JSON, all dimensions are integer millimetres):
 //   GET  /health            -> service status and algorithm capabilities
 //   POST /v1/pack/cartons   -> evaluate items against one or more fixed cartons
+//                              "algorithm": "optimizer" -> new optimizer.cpp (layers, fragile cushion)
+//                              "algorithm": "original" or absent -> original packer.cpp
 //   POST /v1/pack/design    -> original behaviour: design a bounding box
 //
 // Configuration:
@@ -17,13 +19,14 @@
 #include "httplib.h"
 #include "nlohmann/json.hpp"
 #include "packer_core.hpp"
+#include "optimizer_core.hpp"
 
 using json = nlohmann::json;
 using namespace std;
 
 namespace {
 
-const char* kVersion = "1.1.0";
+const char* kVersion = "1.2.0";
 const long long kMaxDim = 100000;  // 100 m, in mm
 const size_t kMaxItems = 10000;    // same limit as the original main()
 const size_t kMaxCartons = 100;
@@ -43,7 +46,13 @@ json capabilities() {
         {"weight_aware", false},
         {"padding_aware", false},
         {"units", "mm"},
-        {"modes", {"cartons", "design", "sweep"}}};
+        {"modes", {"cartons", "design", "sweep"}},
+        {"carton_algorithms", {
+            {"original", "row/shelf heuristic from original packer.cpp, single layer"},
+            {"optimizer", {{"source", "original/optimizer.cpp"},
+                           {"layers", "multiple (rows -> layers -> stacked layers)"},
+                           {"fragile_cushion_mm", optimizer::CUSHION_TOTAL},
+                           {"max_height_mm", optimizer::MAX_H}}}}}};
 }
 
 void sendError(httplib::Response& res, int status, const string& code,
@@ -76,7 +85,8 @@ string readId(const json& obj, const string& where) {
 }
 
 // Parses items into algorithm Items (ids 0..n-1) and keeps the external ids.
-vector<packer::Item> parseItems(const json& body, vector<string>& externalIds) {
+vector<packer::Item> parseItems(const json& body, vector<string>& externalIds,
+                                vector<bool>* fragileFlags = nullptr) {
     if (!body.contains("items") || !body.at("items").is_array())
         throw BadRequest{"invalid_items", "'items' must be an array"};
     const json& arr = body.at("items");
@@ -94,6 +104,15 @@ vector<packer::Item> parseItems(const json& body, vector<string>& externalIds) {
                         readDim(arr[i], "h", where), static_cast<int>(i)};
         items.push_back(it);
         externalIds.push_back(id);
+        if (fragileFlags) {
+            bool f = false;
+            if (arr[i].contains("fragile")) {
+                if (!arr[i].at("fragile").is_boolean())
+                    throw BadRequest{"invalid_items", where + ".fragile must be true or false"};
+                f = arr[i].at("fragile").get<bool>();
+            }
+            fragileFlags->push_back(f);
+        }
     }
     return items;
 }
@@ -116,6 +135,60 @@ json placementsInCartonFrame(const packer::CartonFit& fit, const vector<string>&
     return out;
 }
 
+// NEW: one carton evaluated with the optimizer (original/optimizer.cpp).
+// Items arrive WITHOUT the fragile cushion; pack3D adds CUSHION_TOTAL to fragile items itself.
+// Placements are returned as the space each item takes in the carton, cushion included
+// (x, y, z = corner of that space; dx, dy, dz = its size), in the carton frame.
+json optimizerCartonResult(const vector<packer::Item>& in, const vector<bool>& fragile,
+                           const vector<string>& ids, const string& cid,
+                           long long L, long long W, long long H) {
+    vector<optimizer::Item> items;
+    for (size_t i = 0; i < in.size(); ++i) {
+        optimizer::Item it{in[i].l, in[i].w, in[i].h, in[i].id};
+        it.fragile = fragile[i];
+        items.push_back(it);
+    }
+    optimizer::CartonFit fit = optimizer::fitCarton(items, L, W, H);
+
+    json attempts = json::array();
+    for (const auto& a : fit.attempts) {
+        json aj{{"orientation", a.orientation}, {"target_width", a.targetWidth},
+                {"row_limit", a.rowLimit}, {"max_height", a.maxH}, {"fits", a.fits},
+                {"widths_tried", a.widthsTried}, {"widths_that_fit", a.widthsThatFit}};
+        if (a.fits) { aj["best_width"] = a.bestWidth; aj["best_length"] = a.bestLength; }
+        else aj["reason"] = a.reason;
+        attempts.push_back(aj);
+    }
+    json r{{"carton_id", cid}, {"carton", {{"l", L}, {"w", W}, {"h", H}}},
+           {"fits", fit.fits}, {"attempts", attempts}};
+    if (!fit.fits) return r;
+
+    const auto& a = fit.attempts[fit.chosen];
+    const bool swapAxes = a.orientation == "rows_along_width";
+    json placements = json::array();
+    long long ux = 0, uy = 0, uz = 0;
+    int seq = 1;
+    for (int id : fit.sequence) {
+        const auto& p = a.result.p[id];
+        const long long pad = fragile[id] ? optimizer::CUSHION_TOTAL : 0;
+        const double off = fragile[id] ? optimizer::CUSHION_OFFSET : 0.0;
+        // space taken by the item, in algorithm coordinates (x along the rows, y across them)
+        const long long ax = llround(p.x - off), ay = llround(p.y - off), az = llround(p.z - off);
+        const long long al = p.l + pad, aw = p.w + pad, ah = p.h + pad;
+        const long long x = swapAxes ? ay : ax, y = swapAxes ? ax : ay;
+        const long long dx = swapAxes ? aw : al, dy = swapAxes ? al : aw;
+        placements.push_back({{"id", ids[id]}, {"seq", seq++}, {"x", x}, {"y", y}, {"z", az},
+                              {"dx", dx}, {"dy", dy}, {"dz", ah}, {"rotated", p.rotated},
+                              {"cushion_mm", pad / 2}});
+        ux = max(ux, x + dx); uy = max(uy, y + dy); uz = max(uz, az + ah);
+    }
+    r["orientation"] = a.orientation;
+    r["used"] = {{"x", ux}, {"y", uy}, {"z", uz}};
+    r["score"] = static_cast<double>(a.result.score);
+    r["placements"] = placements;
+    return r;
+}
+
 void handleCartons(const httplib::Request& req, httplib::Response& res) {
     const auto t0 = chrono::steady_clock::now();
     json body;
@@ -126,8 +199,17 @@ void handleCartons(const httplib::Request& req, httplib::Response& res) {
     }
     try {
         if (!body.is_object()) throw BadRequest{"malformed_json", "Request body must be a JSON object"};
+        string algorithm = "original";
+        if (body.contains("algorithm")) {
+            if (!body.at("algorithm").is_string())
+                throw BadRequest{"invalid_algorithm", "'algorithm' must be \"original\" or \"optimizer\""};
+            algorithm = body.at("algorithm").get<string>();
+            if (algorithm != "original" && algorithm != "optimizer")
+                throw BadRequest{"invalid_algorithm", "'algorithm' must be \"original\" or \"optimizer\""};
+        }
         vector<string> ids;
-        vector<packer::Item> items = parseItems(body, ids);
+        vector<bool> fragile;
+        vector<packer::Item> items = parseItems(body, ids, &fragile);
 
         if (!body.contains("cartons") || !body.at("cartons").is_array())
             throw BadRequest{"invalid_cartons", "'cartons' must be an array"};
@@ -143,6 +225,11 @@ void handleCartons(const httplib::Request& req, httplib::Response& res) {
             const long long L = readDim(cartons[c], "l", where);
             const long long W = readDim(cartons[c], "w", where);
             const long long H = readDim(cartons[c], "h", where);
+
+            if (algorithm == "optimizer") {
+                results.push_back(optimizerCartonResult(items, fragile, ids, cid, L, W, H));
+                continue;
+            }
 
             packer::CartonFit fit = packer::fitCarton(items, L, W, H);
 
@@ -176,6 +263,7 @@ void handleCartons(const httplib::Request& req, httplib::Response& res) {
         const double ms = chrono::duration<double, milli>(chrono::steady_clock::now() - t0).count();
         res.set_content(json{{"engine", {{"name", "packwise-packer"}, {"version", kVersion}}},
                              {"mode", "cartons"},
+                             {"algorithm", algorithm},
                              {"frame", "x along carton length, y along carton width, z up; mm"},
                              {"item_count", items.size()},
                              {"elapsed_ms", ms},

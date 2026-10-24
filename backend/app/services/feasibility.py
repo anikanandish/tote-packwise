@@ -38,13 +38,24 @@ def mm_down(cm: float) -> int:
     return math.floor(round(cm * 10, 4))
 
 
+# The optimizer (original/optimizer.cpp) puts a fixed cushion around every fragile item:
+# CUSHION_TOTAL = 30 mm per dimension, i.e. 15 mm on each side. The engine adds it itself, so
+# fragile items are sent WITHOUT padding and this value only describes what the engine did.
+OPTIMIZER_CUSHION_TOTAL_MM = 30
+
+
+def optimizer_on() -> bool:
+    return settings.packing_algorithm == "optimizer"
+
+
 def fmt(cm: float) -> str:
     return f"{cm:.1f}"
 
 
 # ----------------------------------------------------------------- units
-def build_units(order: Order) -> tuple[list[dict], list[str]]:
-    """Returns (units, order-level blockers)."""
+def build_units(order: Order, algorithm: str = "original") -> tuple[list[dict], list[str]]:
+    """Returns (units, order-level blockers). algorithm="optimizer" uses the optimizer's fixed
+    fragile cushion; the simulator and health check keep calling this with the original rules."""
     units, blockers = [], []
     for line in order.items:
         p = line.product
@@ -56,8 +67,14 @@ def build_units(order: Order) -> tuple[list[dict], list[str]]:
         if p.fragile and not p.protection_material_code:
             blockers.append(f"{p.name} is fragile but has no protective material configured. "
                             "An admin must set one before it can be packed.")
+        engine_cushion = algorithm == "optimizer" and p.fragile
+        if engine_cushion:
+            # the optimizer's own rule replaces the product padding for fragile items
+            padding = OPTIMIZER_CUSHION_TOTAL_MM / 20
+            padding_rule = "optimizer_fragile_cushion"
         for k in range(line.quantity):
             pl, pw, ph = p.length_cm + 2 * padding, p.width_cm + 2 * padding, p.height_cm + 2 * padding
+            bare_mm = [mm_up(p.length_cm), mm_up(p.width_cm), mm_up(p.height_cm)]
             units.append({
                 "ref": f"P{p.id}-{k + 1}",
                 "product_id": p.id,
@@ -68,7 +85,10 @@ def build_units(order: Order) -> tuple[list[dict], list[str]]:
                 "padding_cm": padding,
                 "padding_rule": padding_rule,
                 "padded_cm": [round(pl, 2), round(pw, 2), round(ph, 2)],
-                "padded_mm": [mm_up(pl), mm_up(pw), mm_up(ph)],
+                "padded_mm": ([d + OPTIMIZER_CUSHION_TOTAL_MM for d in bare_mm] if engine_cushion
+                              else [mm_up(pl), mm_up(pw), mm_up(ph)]),
+                # what is sent to the engine: the optimizer adds the fragile cushion itself
+                "engine_mm": bare_mm if engine_cushion else [mm_up(pl), mm_up(pw), mm_up(ph)],
                 "weight_g": p.weight_g,
                 "fragile": p.fragile,
                 "orientation": p.orientation,
@@ -199,7 +219,7 @@ def custom_box_cost(dims_cm: list[float]) -> dict:
 
 # ----------------------------------------------------------------- main entry
 def evaluate(db: Session, order: Order, only_carton_id: Optional[int] = None) -> dict:
-    units, blockers = build_units(order)
+    units, blockers = build_units(order, settings.packing_algorithm)
     materials = {m.code: m for m in db.query(Material).all()}
     all_cartons = db.query(Carton).order_by(Carton.unit_cost.is_(None), Carton.unit_cost, Carton.id).all()
     # Retired cartons from earlier versions are left out; switched-off standard cartons are listed.
@@ -262,17 +282,28 @@ def evaluate(db: Session, order: Order, only_carton_id: Optional[int] = None) ->
         if not dim_problems:
             to_pack.append({"id": f"C{c.id}", "l": snap["dims_mm"][0], "w": snap["dims_mm"][1], "h": snap["dims_mm"][2]})
 
-    engine_request = {"items": [{"id": u["ref"], "l": u["padded_mm"][0], "w": u["padded_mm"][1],
-                                 "h": u["padded_mm"][2]} for u in units],
-                      "cartons": to_pack}
+    algorithm = settings.packing_algorithm
+    if algorithm == "optimizer":
+        engine_items = [{"id": u["ref"], "l": u["engine_mm"][0], "w": u["engine_mm"][1], "h": u["engine_mm"][2],
+                         "fragile": bool(u["fragile"])} for u in units]
+    else:
+        engine_items = [{"id": u["ref"], "l": u["padded_mm"][0], "w": u["padded_mm"][1],
+                         "h": u["padded_mm"][2]} for u in units]
+    engine_request = {"algorithm": algorithm, "items": engine_items, "cartons": to_pack}
     engine_response = None
     if to_pack and units:
-        engine_response = packer_client.pack_cartons(engine_request["items"], to_pack)
+        engine_response = packer_client.pack_cartons(engine_items, to_pack, algorithm)
+        if engine_response.get("algorithm", "original") != algorithm:
+            raise packer_client.PackerError(502, "algorithm_mismatch",
+                                            f"Backend asked for the '{algorithm}' algorithm but the C++ service "
+                                            f"answered with '{engine_response.get('algorithm', 'original')}'. "
+                                            "Rebuild or update the C++ packing service.")
         for res in engine_response["results"]:
             ev = evaluations[int(res["carton_id"][1:])]
             ok = bool(res["fits"])
             ev["checks"].append({"name": "placement", "ok": ok,
-                                 "detail": "Engine found a single-layer placement" if ok
+                                 "detail": ("Engine found a placement" if algorithm == "optimizer"
+                                            else "Engine found a single-layer placement") if ok
                                  else "Engine could not place every item"})
             if ok:
                 chosen_try = next(a for a in res["attempts"] if a["orientation"] == res["orientation"])
@@ -370,7 +401,12 @@ def evaluate(db: Session, order: Order, only_carton_id: Optional[int] = None) ->
                   "void_fill_material_code": settings.void_fill_material_code,
                   "void_fill_cm3_per_unit": settings.void_fill_cm3_per_unit,
                   "rounding": "product dimensions rounded up, carton dimensions rounded down to whole mm",
-                  "engine_limits": "single layer, no stacking, items stay upright, 90° floor rotation only"},
+                  "algorithm": algorithm,
+                  "engine_limits": ("optimizer: rows, then layers stacked up to the carton height (max 300 mm); "
+                                    f"fragile items get a {OPTIMIZER_CUSHION_TOTAL_MM // 2} mm cushion on every side; "
+                                    "items stay upright, 90° floor rotation only")
+                  if algorithm == "optimizer" else
+                  "single layer, no stacking, items stay upright, 90° floor rotation only"},
         "evaluations": sorted(evaluations.values(), key=lambda ev: ev["carton"]["volume_cm3"]),
         "chosen_carton_id": chosen["carton"]["id"] if chosen else None,
         "baseline": baseline_info,
@@ -422,9 +458,10 @@ def _alternatives(evaluations: dict, units: list[dict], blockers: list[str], tot
         out.append({"kind": "restock_material", "text": "A carton fits but a protective material is short: "
                                                         + mats[0]["reasons"][-1]})
     if not too_tall and not too_wide and not restock and not mats and len(units) > 1:
-        out.append({"kind": "split", "text": "Every item fits some carton on its own, but the single-layer engine "
+        engine = "packing engine" if optimizer_on() else "single-layer engine"
+        out.append({"kind": "split", "text": f"Every item fits some carton on its own, but the {engine} "
                                              "cannot place all of them in one carton. Split the order into two or "
-                                             "more parcels, or add a carton with a larger floor."})
+                                             "more parcels, or add a larger carton."})
     return out
 
 
@@ -434,7 +471,7 @@ def _short_reason(ev: dict) -> str:
         r = " ".join(ev["reasons"]).lower()
         return "an item is too tall" if "taller" in r else "an item is too wide"
     if "placement" in names:
-        return "items do not all fit on the floor"
+        return "items do not all fit, even stacked" if optimizer_on() else "items do not all fit on the floor"
     if "weight" in names:
         return "too heavy"
     if "carton_stock" in names:

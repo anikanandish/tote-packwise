@@ -9,7 +9,7 @@ endif()
 
 find_package(Threads REQUIRED)
 
-add_library(packer_core STATIC src/packer_core.cpp)
+add_library(packer_core STATIC src/packer_core.cpp src/optimizer_core.cpp)
 target_include_directories(packer_core PUBLIC src)
 
 add_executable(packer_service src/main.cpp)

@@ -15,6 +15,8 @@ Four separate programs: two React + Vite frontends (the PackWise one also contai
 
 ## 1. What your `packer.cpp` does (inspected first)
 
+> PackWise now packs with the new **optimizer** by default; see "The new optimizer" below. This section describes the original algorithm, still available with `PACKING_ALGORITHM=original`.
+
 | Question | Answer from the source |
 |---|---|
 | Input | `n`, then `n` lines of integer `l w h` on stdin |
@@ -28,6 +30,20 @@ Four separate programs: two React + Vite frontends (the PackWise one also contai
 **How it is integrated (and what was added):** the original `pack()` is copied verbatim into `cpp-packer-service/src/packer_core.cpp`, and the original `main()` sweep lives on as `design()`. The only extension is `fitCarton()`, which runs the original width search inside one fixed carton: the original `pack()` at 200 row widths up to the carton's floor side (both orientations), keeping the lowest-scoring layout that fits the other floor side and the height. Everything the algorithm does not know — padding, weight, fragile protection, stock, cost — is done by the FastAPI feasibility layer. Details: [`cpp-packer-service/README.md`](cpp-packer-service/README.md).
 
 The UI says this plainly: plans are drawn as a single layer, and nothing is ever shown stacked.
+
+### The new optimizer (`optimizer.cpp`) — now the default
+
+| Question | Answer from the source (`cpp-packer-service/original/optimizer.cpp`) |
+|---|---|
+| Input | `n`, then `n` lines of `l w h [fragile 0/1]` |
+| Method | Sort items by footprint area (largest first). Try 60 widths spaced geometrically; for each, binary-search the shortest length. `pack3D()` fills **rows**, then **layers**, then stacks layers (max 300 mm). Lowest score = volume + 0.025 × (largest side)² wins (box sides below 180 × 100 × 50 mm count as that size). |
+| 3D? | **Yes**: items are stacked in layers (`z` can be above 0). |
+| Fragile | A fixed **30 mm** cushion per dimension (15 mm on every side). |
+| Rotation | 90° in the floor plane only. Items are never tipped. |
+
+**How it is integrated:** `pack3D()` and the search are copied verbatim into `cpp-packer-service/src/optimizer_core.cpp` (`optimizeDesign()` is the program's `main()` and was checked against the compiled original on 400 random inputs: identical output). The only addition is `optimizer::fitCarton()`, which runs the same search limited to one warehouse carton (widths up to the carton side, length up to the other side, stack height up to the carton height), both floor orientations, lowest score kept. The backend still picks the **smallest** carton that fits. Fragile items are sent to the engine without padding and `fragile: true`, so the optimizer adds its own cushion; other items keep their product padding.
+
+**Switch back to the old algorithm** (no code change): add `PACKING_ALGORITHM=original` to `backend\.env` and restart the API. `PACKING_ALGORITHM=optimizer` (or no line) uses the new one. The simulator website and the in-app simulator still show the original `packer.cpp`.
 
 ---
 

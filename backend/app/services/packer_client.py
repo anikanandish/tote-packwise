@@ -29,10 +29,14 @@ def health() -> dict:
         raise PackerUnavailable(f"Packing service at {settings.packer_url} is not reachable ({e.__class__.__name__}).")
 
 
-def pack_cartons(items: list[dict], cartons: list[dict]) -> dict:
-    """items: [{id, l, w, h}] and cartons: [{id, l, w, h}], integer millimetres."""
+def pack_cartons(items: list[dict], cartons: list[dict], algorithm: str | None = None) -> dict:
+    """items: [{id, l, w, h[, fragile]}] and cartons: [{id, l, w, h}], integer millimetres.
+    algorithm: None/"original" = original packer.cpp, "optimizer" = new optimizer.cpp."""
+    body = {"items": items, "cartons": cartons}
+    if algorithm:
+        body["algorithm"] = algorithm
     try:
-        r = httpx.post(_url("/v1/pack/cartons"), json={"items": items, "cartons": cartons},
+        r = httpx.post(_url("/v1/pack/cartons"), json=body,
                        timeout=settings.packer_timeout_s)
     except httpx.HTTPError as e:
         raise PackerUnavailable(f"Packing service at {settings.packer_url} is not reachable ({e.__class__.__name__}).")

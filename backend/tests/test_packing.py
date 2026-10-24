@@ -57,6 +57,7 @@ def test_packer_unavailable_gives_meaningful_error(app_client, worker, place_ord
 
 
 # ---------------------------------------------------------------- feasibility
+@pytest.mark.usefixtures("original_algorithm")
 def test_demo_order_recommendation(app_client, worker, place_order):
     order = place_order(DEMO)
     plan = _recommend(app_client, worker, order["id"])
@@ -105,6 +106,7 @@ def test_demo_order_recommendation(app_client, worker, place_order):
     assert plan["estimated_savings"] == round(plan["baseline_cost"] - plan["estimated_cost"], 2)
 
 
+@pytest.mark.usefixtures("original_algorithm")
 def test_padding_aware_feasibility(app_client, worker, admin, place_order):
     # Perfume padded = 100 x 70 x 140 mm. A 135 mm tall carton fits it only without padding.
     r = app_client.post("/api/admin/cartons", headers=admin, json={
@@ -118,6 +120,7 @@ def test_padding_aware_feasibility(app_client, worker, admin, place_order):
     assert any("1.0 cm padding" in r for r in tight["reasons"])
 
 
+@pytest.mark.usefixtures("original_algorithm")
 def test_fragile_min_padding_applied(app_client, worker, place_order):
     # Highlighter has 0.5 cm padding in metadata but is fragile -> raised to the 1.0 cm fragile minimum
     plan = _recommend(app_client, worker, place_order({"satin-glow-highlighter": 1})["id"])
@@ -149,6 +152,7 @@ def test_tall_item_goes_in_the_tallest_carton(app_client, worker, place_order):
     assert plan["carton"]["code"] == "STD-07"
 
 
+@pytest.mark.usefixtures("original_algorithm")
 def test_no_fit_for_tall_item_explains_alternatives(app_client, worker, place_order):
     # Reed diffuser: 220 mm + 2 x 10 mm padding = 240 mm, taller than every standard carton (max 200 mm)
     plan = _recommend(app_client, worker, place_order({"cedar-reed-diffuser": 1})["id"])
@@ -159,6 +163,7 @@ def test_no_fit_for_tall_item_explains_alternatives(app_client, worker, place_or
     assert app_client.post(f"/api/packwise/plans/{plan['id']}/accept", headers=worker).status_code == 409
 
 
+@pytest.mark.usefixtures("original_algorithm")
 def test_engine_rejects_floor_overflow(app_client, worker, place_order):
     # 12 notebooks: each fits a floor alone, but the single-layer engine cannot place 12 side by side
     plan = _recommend(app_client, worker, place_order({"dot-grid-notebook": 12})["id"])

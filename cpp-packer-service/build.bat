@@ -14,11 +14,11 @@ if errorlevel 1 (
 )
 
 echo Building packer_service.exe ...
-g++ -std=c++17 -O2 -D_WIN32_WINNT=0x0A00 -Iinclude -Isrc src\main.cpp src\packer_core.cpp -o build\packer_service.exe -lws2_32 -lcrypt32 -static
+g++ -std=c++17 -O2 -D_WIN32_WINNT=0x0A00 -Iinclude -Isrc src\main.cpp src\packer_core.cpp src\optimizer_core.cpp -o build\packer_service.exe -lws2_32 -lcrypt32 -static
 if errorlevel 1 exit /b 1
 
 echo Building test_core.exe ...
-g++ -std=c++17 -O2 -Isrc tests\test_core.cpp src\packer_core.cpp -o build\test_core.exe -static
+g++ -std=c++17 -O2 -Isrc tests\test_core.cpp src\packer_core.cpp src\optimizer_core.cpp -o build\test_core.exe -static
 if errorlevel 1 exit /b 1
 
 echo Running core tests ...

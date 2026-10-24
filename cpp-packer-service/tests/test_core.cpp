@@ -1,8 +1,10 @@
 // Unit tests for the packing core (no HTTP). Build with build.bat / build.sh.
+#include <array>
 #include <cassert>
 #include <iostream>
 
 #include "../src/packer_core.hpp"
+#include "../src/optimizer_core.hpp"
 
 using namespace packer;
 
@@ -103,6 +105,52 @@ int main() {
         CHECK(f.fits);
         for (const auto& a : f.attempts)
             if (a.fits) CHECK(a.result.W <= a.targetWidth && a.result.L <= a.rowLimit && a.result.H <= 150);
+    }
+    // ---------------- optimizer (original/optimizer.cpp) ----------------
+    {
+        namespace O = optimizer;
+        // 10. Stays inside the carton (cushion included) and nothing overlaps in 3D.
+        std::vector<O::Item> items = {{100, 70, 140, 0}, {70, 50, 140, 1}, {25, 25, 85, 2}, {15, 15, 130, 3},
+                                      {40, 40, 60, 4, true}, {60, 60, 50, 5, true}};
+        O::CartonFit f = O::fitCarton(items, 360, 250, 150);
+        CHECK(f.fits);
+        const auto& a = f.attempts[f.chosen];
+        std::vector<std::array<long long, 6>> box;
+        for (size_t i = 0; i < items.size(); ++i) {
+            const auto& p = a.result.p[i];
+            const long long pad = items[i].fragile ? O::CUSHION_TOTAL : 0;
+            const double off = items[i].fragile ? O::CUSHION_OFFSET : 0.0;
+            box.push_back({(long long)(p.x - off), (long long)(p.y - off), (long long)(p.z - off),
+                           p.l + pad, p.w + pad, p.h + pad});
+            CHECK(box.back()[0] >= 0 && box.back()[0] + box.back()[3] <= a.targetWidth);
+            CHECK(box.back()[1] >= 0 && box.back()[1] + box.back()[4] <= a.rowLimit);
+            CHECK(box.back()[2] >= 0 && box.back()[2] + box.back()[5] <= 150);
+            CHECK(p.h == items[i].h);                       // never tipped over
+        }
+        for (size_t i = 0; i < box.size(); ++i)
+            for (size_t j = i + 1; j < box.size(); ++j) {
+                const auto& u = box[i]; const auto& v = box[j];
+                const bool sep = u[0] + u[3] <= v[0] || v[0] + v[3] <= u[0] || u[1] + u[4] <= v[1] ||
+                                 v[1] + v[4] <= u[1] || u[2] + u[5] <= v[2] || v[2] + v[5] <= u[2];
+                CHECK(sep);
+            }
+    }
+    {
+        namespace O = optimizer;
+        // 11. Stacks in layers when the floor is too small for one layer.
+        std::vector<O::Item> items;
+        for (int i = 0; i < 4; ++i) items.push_back({100, 100, 40, i});
+        O::CartonFit f = O::fitCarton(items, 200, 100, 100);   // floor holds 2, height holds 2 layers
+        CHECK(f.fits);
+        bool stacked = false;
+        for (const auto& p : f.attempts[f.chosen].result.p) if (p.z > 0) stacked = true;
+        CHECK(stacked);
+        // 12. Too tall (cushion counts) -> rejected.
+        std::vector<O::Item> tall = {{50, 50, 80, 0, true}};      // 80 + 30 = 110 > 100
+        CHECK(!O::fitCarton(tall, 200, 150, 100).fits);
+        // 13. optimizeDesign() packs and scores like the program.
+        O::Result d = O::optimizeDesign({{100, 70, 140, 0}, {25, 25, 85, 1, true}});
+        CHECK(d.success && d.W >= 180 && d.L >= 100 && d.H >= 50);
     }
     if (failures == 0) std::cout << "All core tests passed\n";
     return failures == 0 ? 0 : 1;

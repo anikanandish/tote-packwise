@@ -58,6 +58,7 @@ def app_client(request, tmp_path, packer_url, monkeypatch):
     monkeypatch.setattr(settings, "admin_access_code", ADMIN_CODE)
     monkeypatch.setattr(settings, "seed_demo_order", False)
     monkeypatch.setattr(settings, "seed_sample_carton_values", True)
+    monkeypatch.setattr(settings, "packing_algorithm", "optimizer")   # the shipped default
     from app.security import admin_throttle
     admin_throttle._fails.clear()
     database.configure(f"sqlite:///{(tmp_path / 'test.db').as_posix()}")
@@ -120,3 +121,10 @@ DEMO = {"velvet-matte-lipstick": 1, "gentle-nail-polish-remover": 1, "precision-
         "rose-oud-eau-de-parfum": 1}
 FULL_CHECKLIST = {"items_match_order": True, "fragile_protection_applied": True, "placement_followed": True,
                   "void_fill_added": True, "carton_sealed": True}
+
+
+@pytest.fixture()
+def original_algorithm(app_client, monkeypatch):
+    """Run a test with the original packer.cpp algorithm (PACKING_ALGORITHM=original)."""
+    from app.config import settings
+    monkeypatch.setattr(settings, "packing_algorithm", "original")

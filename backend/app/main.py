@@ -54,8 +54,10 @@ app = FastAPI(
         "**Auth:** call `/api/auth/login` (customer/admin) or `/api/auth/worker` (worker code), then click "
         "*Authorize* and paste the token.\n\n"
         "**Packing:** recommendations are computed by the separate C++ service over HTTP "
-        f"(`{settings.packer_url}`). Its algorithm is single-layer, never stacks, never tips items, "
-        "and only rotates items 90° on the floor."
+        f"(`{settings.packer_url}`). Algorithm in use: **{settings.packing_algorithm}** "
+        "(set PACKING_ALGORITHM=optimizer or original in backend/.env). The optimizer packs rows, then "
+        "stacked layers, and cushions fragile items; the original is single-layer. Neither tips items over; "
+        "both only rotate items 90° on the floor."
     ),
     lifespan=lifespan,
 )

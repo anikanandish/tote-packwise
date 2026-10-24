@@ -5,8 +5,7 @@ import { useAuth } from '../context/AuthContext'
 export function Logo({ light }) {
   return (
     <span className={`logo ${light ? 'logo-light' : ''}`}>
-      <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden><path d="M5 11 16 5.5 27 11v11L16 27.5 5 22z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" /><path d="M5 11l11 5.5L27 11M16 16.5v11" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" /></svg>
-      PackWise
+      <img src="/packwise-logo.jpg" alt="PackWise — Since 2026" />
     </span>
   )
 }

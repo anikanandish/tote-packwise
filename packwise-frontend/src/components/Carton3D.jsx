@@ -163,11 +163,12 @@ function buildItems(group, carton, placements, { currentRefs, doneRefs, colors, 
 }
 
 export default function Carton3D({ carton, placements, currentRefs, doneRefs, colors, fragileRefs = new Set(),
-  theme = 'light', autoRotate = false, className = '', height }) {
+  theme = 'light', autoRotate = false, className = '', height, frameDims }) {
   const hostRef = useRef(null)
   const ctx = useRef(null)
   const [ok] = useState(webglOk)
   const key = carton.join('x')
+  const frameKey = (frameDims || carton).join('x')
 
   // one renderer per carton size; camera survives slide changes
   useEffect(() => {
@@ -184,12 +185,13 @@ export default function Carton3D({ carton, placements, currentRefs, doneRefs, co
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 2000)
     // frame the box plus its open flaps
-    const r = Math.sqrt(L * L + W * W + (H + W * 0.5) ** 2) / 2
+    const [frameL, frameW, frameH] = frameDims || carton
+    const r = Math.sqrt(frameL * frameL + frameW * frameW + (frameH + frameW * 0.5) ** 2) / 2
     const dist = (r / Math.sin((35 * Math.PI) / 360)) * 1.25
     const dir = new THREE.Vector3(0.45, 0.85, 1).normalize()
     const home = dir.multiplyScalar(dist)
     camera.position.copy(home)
-    const target = new THREE.Vector3(0, H * 0.42, 0)
+    const target = new THREE.Vector3(0, frameH * 0.42, 0)
 
     scene.add(new THREE.HemisphereLight(0xffffff, theme === 'dark' ? 0x292334 : 0xe9d8c8, 1.1))
     const sun = new THREE.DirectionalLight(0xffffff, 1.6)
@@ -253,7 +255,7 @@ export default function Carton3D({ carton, placements, currentRefs, doneRefs, co
       host.removeChild(renderer.domElement)
       ctx.current = null
     }
-  }, [ok, key, theme, autoRotate]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ok, key, frameKey, theme, autoRotate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // rebuild the items whenever the step changes
   useEffect(() => {

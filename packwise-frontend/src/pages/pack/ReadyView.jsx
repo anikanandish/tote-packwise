@@ -65,6 +65,65 @@ export function ChangeCarton({ plan, busy, error, onOverride, onRecalculate, onC
   )
 }
 
+function SpaceComparison({ plan, carton, placements, colors, fragileRefs }) {
+  const larger = useMemo(() => {
+    const baseline = plan.baseline?.carton
+    const baselineEval = plan.evaluations.find((e) => e.carton.id === baseline?.id)
+    if (baseline && baseline.volume_cm3 > carton.volume_cm3 && baselineEval?.physically_feasible) return baseline
+    return plan.evaluations
+      .filter((e) => e.status === 'feasible' && e.carton.volume_cm3 > carton.volume_cm3)
+      .sort((a, b) => b.carton.volume_cm3 - a.carton.volume_cm3)[0]?.carton || null
+  }, [plan, carton])
+  if (!larger) return null
+
+  const packedVolume = (plan.units || []).reduce((sum, unit) =>
+    sum + unit.padded_cm[0] * unit.padded_cm[1] * unit.padded_cm[2], 0)
+  const largerEmpty = Math.max(0, larger.volume_cm3 - packedVolume)
+  const chosenEmpty = Math.max(0, carton.volume_cm3 - packedVolume)
+  const savedVolume = largerEmpty - chosenEmpty
+  const savedPercent = largerEmpty > 0 ? Math.round((largerEmpty - chosenEmpty) / largerEmpty * 100) : 0
+  const frameDims = larger.dims_cm
+  const litres = (volume) => `${(volume / 1000).toFixed(1)} L`
+  const size = (dims) => `${dims.map((n) => Math.round(n * 10) / 10).join(' × ')} cm`
+
+  return (
+    <section className="space-compare" aria-labelledby="space-compare-title">
+      <div className="space-compare-head">
+        <p className="eyebrow">Same order · same safe placement</p>
+        <h2 id="space-compare-title">Big carton vs. optimized carton</h2>
+        <p>See the extra space the larger box ships, next to the right-size carton for this order.</p>
+      </div>
+      <div className="space-compare-grid">
+        <article className="compare-box compare-baseline">
+          <div className="compare-box-head">
+            <div><span className="compare-kicker">Larger carton</span><h3>{larger.name}</h3></div>
+            <span className="compare-volume">{litres(larger.volume_cm3)}</span>
+          </div>
+          <p className="compare-dims">{size(larger.dims_cm)}</p>
+          <div className="compare-scene">
+            <Carton3D carton={larger.dims_cm} frameDims={frameDims} placements={placements}
+              fragileRefs={fragileRefs} colors={colors} className="c3d-compare" />
+          </div>
+          <p className="compare-caption">About {litres(largerEmpty)} of carton volume remains around the items.</p>
+        </article>
+        <div className="compare-arrow" aria-hidden="true">→</div>
+        <article className="compare-box compare-optimized">
+          <div className="compare-box-head">
+            <div><span className="compare-kicker">PackWise pick</span><h3>{carton.name}</h3></div>
+            <span className="compare-volume">{litres(carton.volume_cm3)}</span>
+          </div>
+          <p className="compare-dims">{size(carton.dims_cm)}</p>
+          <div className="compare-scene">
+            <Carton3D carton={carton.dims_cm} frameDims={frameDims} placements={placements}
+              fragileRefs={fragileRefs} colors={colors} className="c3d-compare" />
+          </div>
+          <p className="compare-caption">{savedVolume > 0 ? `${litres(savedVolume)} less unused volume · ${savedPercent}% less empty space` : 'The smallest carton that passes every safety check.'}</p>
+        </article>
+      </div>
+    </section>
+  )
+}
+
 function WhyCarton({ plan }) {
   const rejected = plan.evaluations.filter((e) => e.status !== 'feasible' && e.carton.volume_cm3 < plan.selected.carton.volume_cm3)
   return (
@@ -93,6 +152,7 @@ export default function ReadyView({ order, plan, busy, error, onStart, onChange,
 
   return (
     <div className="ready-wrap">
+    <SpaceComparison plan={plan} carton={carton} placements={plan.placements} colors={colors} fragileRefs={fragileRefs} />
     <CartonShelf plan={plan} />
     <div className="ready">
       <section className="ready-main">

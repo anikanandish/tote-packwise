@@ -49,7 +49,7 @@ export default function CartonShelf({ plan }) {
   return (
     <section className="shelf" aria-label="Warehouse carton sizes">
       <div className="shelf-head">
-        <p className="shelf-title">The packing algorithm tried all {shelf.length} carton sizes</p>
+        <p className="shelf-title">All carton sizes · smallest to largest</p>
         <p className="shelf-sub">{fits} {fits === 1 ? 'fits' : 'fit'} this order safely · the smallest one wins, so the least air is shipped</p>
       </div>
       <ol className="shelf-row">
@@ -61,7 +61,7 @@ export default function CartonShelf({ plan }) {
             <li key={e.carton.id} className={`shelf-item ${v.cls}`} aria-current={v.cls === 'chosen' ? 'true' : undefined}>
               <div className="shelf-art"><Box L={L} W={W} H={H} s={s} cls={v.cls} /></div>
               <p className="shelf-name">{n && <span className="shelf-no">{n}</span>}{e.carton.name}</p>
-              <p className="shelf-dims">{fmt(L)} × {fmt(W)} × {fmt(H)}</p>
+              <p className="shelf-dims">{fmt(L)} × {fmt(W)} × {fmt(H)} cm</p>
               <p className="shelf-verdict">{v.label}</p>
             </li>
           )

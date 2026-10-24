@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
@@ -15,9 +15,20 @@ export default function Shell() {
   const { session, isAdmin, logout } = useAuth()
   const nav = useNavigate()
   const [open, setOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
   const name = session?.user?.name
+  useEffect(() => {
+    const closeOnEscape = (event) => { if (event.key === 'Escape') setOpen(false) }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [])
+  const toggleNavigation = () => {
+    if (window.matchMedia('(max-width: 900px)').matches) setOpen((value) => !value)
+    else setCollapsed((value) => !value)
+  }
+  const mobile = window.matchMedia('(max-width: 900px)').matches
   return (
-    <div className="shell">
+    <div className={`shell ${collapsed ? 'sidebar-collapsed' : ''}`}>
       <aside className={`side ${open ? 'open' : ''}`}>
         <Link to="/queue" className="side-logo" onClick={() => setOpen(false)}><Logo light /></Link>
         <nav onClick={() => setOpen(false)}>
@@ -34,9 +45,12 @@ export default function Shell() {
           <button className="btn btn-quiet-dark" onClick={async () => { await logout(); nav(isAdmin ? '/admin/login' : '/') }}>Sign out</button>
         </div>
       </aside>
+      {open && <button className="side-scrim" aria-label="Close navigation" onClick={() => setOpen(false)} />}
       <div className="main">
         <header className="topbar">
-          <button className="icon-btn burger" onClick={() => setOpen(!open)} aria-label="Menu" aria-expanded={open}>≡</button>
+          <button className="icon-btn burger" onClick={toggleNavigation}
+            aria-label={mobile ? (open ? 'Close navigation' : 'Open navigation') : (collapsed ? 'Expand navigation' : 'Collapse navigation')}
+            aria-expanded={mobile ? open : !collapsed}>☰</button>
           <span className="topbar-who">{name} · {isAdmin ? 'admin' : 'worker'}</span>
         </header>
         <Outlet />

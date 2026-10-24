@@ -7,14 +7,30 @@ import { useToast } from '../context/ToastContext'
 import { api, fieldErrors } from '../lib/api'
 import { money } from '../lib/format'
 
+// Checkout autofill: the details of the last order placed in this browser are filled in again,
+// and "Fill sample details" fills a clearly fake demo address for quick demos.
+const SAVED_KEY = (user) => `tote.checkout.${user?.id ?? user?.email ?? 'guest'}`
+const SAMPLE = { phone: '9876543210', line1: '12 MG Road', line2: 'Demo building, 2nd floor', city: 'Bengaluru',
+  state: 'Karnataka', postal_code: '560001' }
+const FIELDS = ['name', 'email', 'phone', 'line1', 'line2', 'city', 'state', 'postal_code']
+function readSaved(user) {
+  try { return JSON.parse(localStorage.getItem(SAVED_KEY(user))) || null } catch { return null }
+}
+function saveDetails(user, f, method) {
+  try { localStorage.setItem(SAVED_KEY(user), JSON.stringify({ ...Object.fromEntries(FIELDS.map((k) => [k, f[k]])), method })) } catch { /* ignore */ }
+}
+
 export default function Checkout() {
   const { user } = useAuth()
   const { cart, cartLoading, refreshCart } = useShop()
   const toast = useToast()
   const nav = useNavigate()
-  const [f, setF] = useState({ name: user.name, email: user.email, phone: '', line1: '', line2: '', city: '', state: '', postal_code: '' })
-  const [method, setMethod] = useState('card')
-  const [confirm, setConfirm] = useState(false)
+  const saved = readSaved(user)
+  const [f, setF] = useState(() => ({ name: user.name, email: user.email, phone: '', line1: '', line2: '', city: '', state: '',
+    postal_code: '', ...(saved ? Object.fromEntries(FIELDS.filter((k) => saved[k]).map((k) => [k, saved[k]])) : {}) }))
+  const [method, setMethod] = useState(saved?.method || 'card')
+  const [confirm, setConfirm] = useState(!!saved)
+  const fillSample = () => { setF({ ...f, ...SAMPLE, name: f.name || user.name, email: f.email || user.email }); setConfirm(true); setErrors({}) }
   const [errors, setErrors] = useState({})
   const [busy, setBusy] = useState(false)
   const [formError, setFormError] = useState('')
@@ -42,6 +58,7 @@ export default function Checkout() {
         },
       })
       placed.current = true
+      saveDetails(user, f, method)
       nav(`/order/${order.code}?placed=1`, { replace: true })
       refreshCart().catch(() => {})
     } catch (err) {
@@ -56,6 +73,10 @@ export default function Checkout() {
       <h1>Checkout</h1>
       <form className="checkout-grid" onSubmit={submit} noValidate>
         <div className="checkout-form">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+            <button type="button" className="btn btn-ghost" onClick={fillSample}>Fill sample details</button>
+            {saved && <span className="muted">Filled in from your last order.</span>}
+          </div>
           <fieldset>
             <legend>Contact</legend>
             <Field label="Full name" error={errors.name}><input className="input" value={f.name} onChange={up('name')} autoComplete="name" required /></Field>

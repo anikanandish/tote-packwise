@@ -18,6 +18,7 @@ export function ChangeCarton({ plan, busy, error, onOverride, onRecalculate, onC
   const [pick, setPick] = useState(null)
   const [reason, setReason] = useState('')
   const current = plan.selected?.carton
+  const cartons = plan.evaluations.map((e) => e.carton)
   const options = plan.evaluations
     .filter((e) => e.status === 'feasible' && e.carton.id !== current?.id)
     .sort((a, b) => a.carton.volume_cm3 - b.carton.volume_cm3)
@@ -39,7 +40,7 @@ export function ChangeCarton({ plan, busy, error, onOverride, onRecalculate, onC
             return (
               <button key={e.carton.id} role="radio" aria-checked={pick === e.carton.id}
                 className={`choice ${pick === e.carton.id ? 'on' : ''}`} onClick={() => setPick(e.carton.id)}>
-                <span className="choice-name">{cartonTitle(e.carton)}</span>
+                <span className="choice-name">{cartonTitle(e.carton, cartons)}</span>
                 <span className="muted">{dims(e.carton.dims_cm)}{curVol ? ` · ${(e.carton.volume_cm3 / curVol).toFixed(1)}× the space` : ''}</span>
                 <span className="choice-cost">{money(e.cost?.total)}{diff != null && <small> {diff >= 0 ? '+' : '−'}{money(Math.abs(diff))}</small>}</span>
               </button>
@@ -186,6 +187,7 @@ function SpaceComparison({ plan, carton, placements, colors, fragileRefs }) {
 }
 
 function WhyCarton({ plan }) {
+  const cartons = plan.evaluations.map((e) => e.carton)
   const rejected = plan.evaluations.filter((e) => e.status !== 'feasible' && e.carton.volume_cm3 < plan.selected.carton.volume_cm3)
   return (
     <details className="why-box">
@@ -193,7 +195,7 @@ function WhyCarton({ plan }) {
       <ul>
         {(plan.selected.why || []).map((w, i) => <li key={i}>{w}</li>)}
         {(plan.warnings || []).map((w, i) => <li key={`w${i}`} className="warnline">{w}</li>)}
-        {rejected.filter((e) => e.status !== 'inactive').map((e) => <li key={e.carton.id}><b>{cartonTitle(e.carton)}</b>: {e.reasons[0] || 'did not pass the checks'}</li>)}
+        {rejected.filter((e) => e.status !== 'inactive').map((e) => <li key={e.carton.id}><b>{cartonTitle(e.carton, cartons)}</b>: {e.reasons[0] || 'did not pass the checks'}</li>)}
         <li>Estimated packaging cost {money(plan.estimated_cost)}
           {plan.baseline?.available ? `, ${signedMoney(plan.estimated_savings)} against the ${plan.baseline.carton.name} baseline` : ''}.</li>
       </ul>
@@ -203,6 +205,7 @@ function WhyCarton({ plan }) {
 
 export default function ReadyView({ order, plan, busy, error, onStart, onChange, onRecalculate }) {
   const carton = plan.selected.carton
+  const cartons = plan.evaluations.map((e) => e.carton)
   const fragileRefs = useMemo(() => new Set(plan.units.filter((u) => u.fragile).map((u) => u.ref)), [plan])
   const colors = useMemo(() => colorsFor(plan, order), [plan, order])
   const fill = fillOf(plan)
@@ -219,7 +222,7 @@ export default function ReadyView({ order, plan, busy, error, onStart, onChange,
       <section className="ready-main">
         <div className="carton-hero">
           <div className="ch-top">
-            {boxNo(carton) && <span className="ch-no" aria-label={`Box number ${boxNo(carton)}`}>{boxNo(carton)}</span>}
+            {boxNo(carton, cartons) && <span className="ch-no" aria-label={`Box number ${boxNo(carton, cartons)}`}>{boxNo(carton, cartons)}</span>}
             <div>
               <p className="ch-label">Take box</p>
               <p className="ch-name">{carton.name}</p>
@@ -239,7 +242,7 @@ export default function ReadyView({ order, plan, busy, error, onStart, onChange,
         <div className="grab">
           <p className="grab-title">Grab</p>
           <ul>
-            <li><b>1</b> {cartonTitle(carton)}</li>
+            <li><b>1</b> {cartonTitle(carton, cartons)}</li>
             {mats.map((m) => <li key={m.code}><b>{m.estimate ? '~' : ''}{m.quantity}</b> {m.name.toLowerCase()}</li>)}
           </ul>
         </div>
@@ -263,6 +266,7 @@ export default function ReadyView({ order, plan, busy, error, onStart, onChange,
           </div>
         )}
 
+        <p className="nudge-start-hint">To fine-tune item positions, start packing first. The W A S D controls appear on each item step.</p>
         <button className="btn btn-peach btn-xl" disabled={busy} onClick={onStart} autoFocus>
           {busy ? 'Reserving carton…' : 'Start packing'}
         </button>

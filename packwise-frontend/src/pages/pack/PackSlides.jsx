@@ -132,6 +132,7 @@ function Finish({ plan, order, busy, error, onComplete, placements }) {
 export default function PackSlides({ order, plan, slides, index, setIndex, busy, error, onComplete, onChange, onStop }) {
   const [view, setView] = useState(readView)
   const carton = plan.selected.carton
+  const cartons = plan.evaluations.map((e) => e.carton)
   const onFinish = index >= slides.length
   const slide = slides[Math.min(index, slides.length - 1)]
 
@@ -141,18 +142,21 @@ export default function PackSlides({ order, plan, slides, index, setIndex, busy,
   useEffect(() => { setNudges(readNudges(plan.id)) }, [plan.id])
   const placed = useMemo(() => applyNudges(plan.placements, nudges), [plan.placements, nudges])
   const [activeRef, setActiveRef] = useState(null)
+  const [nudgeNotice, setNudgeNotice] = useState('')
   useEffect(() => { setActiveRef(onFinish ? null : slide.refs[0]) }, [index]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const nudge = (ddx, ddy) => {
-    if (!activeRef) return
+    if (!activeRef) { setNudgeNotice('Select an item first.'); return }
     const p = placed.find((q) => q.unit_ref === activeRef)
-    if (!p) return
+    if (!p) { setNudgeNotice('Select an item first.'); return }
     const moved = { ...p, x: r1(p.x + ddx), y: r1(p.y + ddy) }
     const hit = blockedBy(moved, placed, carton.dims_cm)
-    if (hit) return                                  // would leave the carton or overlap
+    if (hit) { setNudgeNotice(`Move blocked by ${hit}.`); return }
     const base = plan.placements.find((q) => q.unit_ref === activeRef)
     const next = { ...nudges, [activeRef]: { dx: r1(moved.x - base.x), dy: r1(moved.y - base.y) } }
     setNudges(next); saveNudges(plan.id, next)
+    const direction = ddx < 0 ? 'left' : ddx > 0 ? 'right' : ddy < 0 ? 'back' : 'forward'
+    setNudgeNotice(`Moved ${p.product_name || p.name || 'item'} ${direction} ${Math.abs(ddx || ddy)} cm.`)
   }
   const currentRefs = useMemo(() => new Set(onFinish ? [] : slide.refs), [onFinish, slide])
   const doneRefs = useMemo(() => new Set(onFinish ? plan.placements.map((p) => p.unit_ref) : slide.earlierRefs), [onFinish, slide, plan])
@@ -164,7 +168,7 @@ export default function PackSlides({ order, plan, slides, index, setIndex, busy,
       if (e.key === 'ArrowLeft' && index > 0) { e.preventDefault(); setIndex(index - 1) }
       if (!onFinish && !e.ctrlKey && !e.metaKey && !e.altKey) {
         const step = e.shiftKey ? NUDGE_FINE_CM : NUDGE_CM
-        const move = { KeyW: [0, -step], KeyS: [0, step], KeyA: [-step, 0], KeyD: [step, 0] }[e.code]
+        const move = { w: [0, -step], s: [0, step], a: [-step, 0], d: [step, 0] }[e.key.toLowerCase()]
         if (move) { e.preventDefault(); nudge(...move) }
       }
     }
@@ -177,7 +181,7 @@ export default function PackSlides({ order, plan, slides, index, setIndex, busy,
   return (
     <div className="slides">
       <div className="slides-bar">
-        <div className="carton-chip"><b>{cartonTitle(carton)}</b> <span>{setupShort(carton.dims_cm)}</span></div>
+        <div className="carton-chip"><b>{cartonTitle(carton, cartons)}</b> <span>{setupShort(carton.dims_cm)}</span></div>
         <Progress slides={slides} index={index} onJump={setIndex} />
         <div className="slides-tools">
           <button className="linkbtn" onClick={onChange}>Change carton</button>
@@ -202,9 +206,9 @@ export default function PackSlides({ order, plan, slides, index, setIndex, busy,
             <ol className="todo">
               {slide.wrap && <li className="todo-wrap">{slide.wrap}</li>}
               {slide.spots.map((sp, k) => (
-                <li key={sp.ref} className="todo-place" onClick={() => setActiveRef(sp.ref)}
-                  aria-current={slide.qty > 1 && sp.ref === activeRef ? 'true' : undefined}
-                  style={slide.qty > 1 ? { cursor: 'pointer', outline: sp.ref === activeRef ? '2px solid currentColor' : 'none', borderRadius: 8 } : undefined}>
+                <li key={sp.ref} className="todo-place" onClick={() => { setActiveRef(sp.ref); setNudgeNotice('Item selected. Use W A S D or the buttons to adjust it.') }}
+                  aria-current={sp.ref === activeRef ? 'true' : undefined}
+                  style={{ cursor: 'pointer', outline: sp.ref === activeRef ? '2px solid currentColor' : 'none', borderRadius: 8 }}>
                   <span className="seqdot">{sp.seq}</span>
                   <div>
                     <b>{slide.qty > 1 ? `${k === 0 ? 'First' : k === 1 ? 'Second' : `No. ${k + 1}`}: ` : ''}{sp.headline}</b>
@@ -232,6 +236,16 @@ export default function PackSlides({ order, plan, slides, index, setIndex, busy,
               ? <Carton3D carton={carton.dims_cm} placements={placed} currentRefs={currentRefs} doneRefs={doneRefs} colors={colors} />
               : <FloorPlan carton={carton.dims_cm} placements={placed} currentRefs={currentRefs} doneRefs={doneRefs} names />}
             <p className="legend"><span className="lg-cur" />Place now <span className="lg-done" />Already in <span className="lg-ghost" />Comes later</p>
+            <div className="nudge-panel" aria-label="Fine-tune item position">
+              <div className="nudge-copy"><b>Fine-tune this item</b><span>Buttons move 0.5 cm · keyboard: Shift + W A S D moves 0.1 cm</span></div>
+              <div className="nudge-pad" aria-label="Move selected item">
+                <button type="button" onClick={() => nudge(0, -NUDGE_CM)} aria-label="Move back (W)">W</button>
+                <button type="button" onClick={() => nudge(-NUDGE_CM, 0)} aria-label="Move left (A)">A</button>
+                <button type="button" onClick={() => nudge(0, NUDGE_CM)} aria-label="Move forward (S)">S</button>
+                <button type="button" onClick={() => nudge(NUDGE_CM, 0)} aria-label="Move right (D)">D</button>
+              </div>
+              <p className="nudge-notice" role="status">{nudgeNotice || `Selected: ${placed.find((p) => p.unit_ref === activeRef)?.product_name || slide.name}. Use W A S D or the buttons.`}</p>
+            </div>
           </div>
         </div>
       )}

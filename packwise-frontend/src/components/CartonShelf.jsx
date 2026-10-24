@@ -36,9 +36,13 @@ function Box({ L, W, H, s, cls }) {
 
 export default function CartonShelf({ plan }) {
   const chosenId = plan.selected?.carton?.id
+  const cartons = (plan.evaluations || []).map((e) => e.carton)
   const shelf = (plan.evaluations || [])
-    .filter((e) => e.status !== 'inactive' || boxNo(e.carton))
-    .sort((a, b) => a.carton.volume_cm3 - b.carton.volume_cm3)
+    .filter((e) => e.status !== 'inactive' || boxNo(e.carton, cartons))
+    .sort((a, b) => {
+      const volume = (c) => c.dims_mm?.reduce((n, side) => n * side, 1) ?? c.volume_cm3
+      return volume(a.carton) - volume(b.carton) || String(a.carton.code).localeCompare(String(b.carton.code))
+    })
   if (!shelf.length) return null
   const maxL = Math.max(...shelf.map((e) => e.carton.dims_cm[0]))
   const maxH = Math.max(...shelf.map((e) => e.carton.dims_cm[2]))
@@ -56,7 +60,7 @@ export default function CartonShelf({ plan }) {
         {shelf.map((e) => {
           const v = verdictOf(e, chosenId)
           const [L, W, H] = e.carton.dims_cm
-          const n = boxNo(e.carton)
+          const n = boxNo(e.carton, cartons)
           return (
             <li key={e.carton.id} className={`shelf-item ${v.cls}`} aria-current={v.cls === 'chosen' ? 'true' : undefined}>
               <div className="shelf-art"><Box L={L} W={W} H={H} s={s} cls={v.cls} /></div>

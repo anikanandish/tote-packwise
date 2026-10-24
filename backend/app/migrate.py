@@ -85,6 +85,10 @@ def _migrate_orders(engine: Engine) -> bool:
 
 
 def run(engine: Engine) -> list[str]:
+    # These rebuilds inspect SQLite's catalog and PRAGMA metadata. Hosted databases are
+    # initialized from the current SQLAlchemy models instead of running SQLite migrations.
+    if engine.dialect.name != "sqlite":
+        return []
     done = []
     if _migrate_cartons(engine):
         done.append("v8-cartons-mm")

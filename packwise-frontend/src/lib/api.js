@@ -1,5 +1,6 @@
 // Small fetch wrapper for the FastAPI backend.
-export const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+const localApi = ['localhost', '127.0.0.1'].includes(window.location.hostname) ? 'http://localhost:8000' : ''
+export const API_URL = (import.meta.env.VITE_API_URL || localApi).replace(/\/$/, '')
 const TOKEN_KEY = 'packwise.token'
 
 export const tokenStore = {

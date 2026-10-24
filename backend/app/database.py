@@ -1,4 +1,4 @@
-"""SQLite engine and session handling."""
+"""Database engine and session handling for local SQLite and hosted PostgreSQL."""
 from pathlib import Path
 
 from sqlalchemy import create_engine, event
@@ -14,15 +14,22 @@ class Base(DeclarativeBase):
 def make_engine(url: str):
     if url.startswith("sqlite:///"):
         Path(url.replace("sqlite:///", "")).parent.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(url, connect_args={"check_same_thread": False, "timeout": 30})
+    elif url.startswith(("postgres://", "postgresql://")):
+        # Use psycopg 3 explicitly; SQLAlchemy's default PostgreSQL driver is psycopg2.
+        url = url.replace("postgres://", "postgresql+psycopg://", 1).replace(
+            "postgresql://", "postgresql+psycopg://", 1
+        )
+    connect_args = {"check_same_thread": False, "timeout": 30} if url.startswith("sqlite:///") else {}
+    engine = create_engine(url, connect_args=connect_args, pool_pre_ping=True)
 
-    @event.listens_for(engine, "connect")
-    def _sqlite_pragmas(dbapi_conn, _):
-        cur = dbapi_conn.cursor()
-        cur.execute("PRAGMA foreign_keys=ON")
-        cur.execute("PRAGMA journal_mode=WAL")
-        cur.execute("PRAGMA busy_timeout=30000")
-        cur.close()
+    if engine.dialect.name == "sqlite":
+        @event.listens_for(engine, "connect")
+        def _sqlite_pragmas(dbapi_conn, _):
+            cur = dbapi_conn.cursor()
+            cur.execute("PRAGMA foreign_keys=ON")
+            cur.execute("PRAGMA journal_mode=WAL")
+            cur.execute("PRAGMA busy_timeout=30000")
+            cur.close()
 
     return engine
 

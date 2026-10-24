@@ -1,0 +1,27 @@
+{
+  "services": {
+    "api": {
+      "root": "backend",
+      "framework": "fastapi",
+      "entrypoint": "app.main:app",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "packer",
+          "format": "url",
+          "env": "PACKER_URL"
+        }
+      ]
+    },
+    "packer": {
+      "root": "cpp-packer-service",
+      "runtime": "container",
+      "entrypoint": "Dockerfile.vercel"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": { "service": "api" } },
+    { "source": "/api", "destination": { "service": "api" } },
+    { "source": "/(.*)", "destination": { "service": "api" } }
+  ]
+}

@@ -14,21 +14,25 @@ schema first, so running it again does nothing.
 """
 import logging
 
-from sqlalchemy import Engine, text
+from sqlalchemy import Engine, inspect, text
 from sqlalchemy.schema import CreateIndex, CreateTable
 
 log = logging.getLogger("tote.migrate")
 
 
 def _columns(conn, table: str) -> set[str]:
-    return {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})").fetchall()}
+    return {column["name"] for column in inspect(conn).get_columns(table)}
 
 
 def _tables(conn) -> set[str]:
-    return {r[0] for r in conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    return set(inspect(conn).get_table_names())
 
 
 def _migrate_cartons(engine: Engine) -> bool:
+    # This table-rebuild migration is specifically for old SQLite databases.
+    # New databases on other engines are created from current SQLAlchemy metadata.
+    if engine.dialect.name != "sqlite":
+        return False
     from .models import Carton
     with engine.connect() as conn:
         if "cartons" not in _tables(conn) or "length_mm" in _columns(conn, "cartons"):

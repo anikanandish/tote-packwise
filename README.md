@@ -339,6 +339,30 @@ Roles are checked on the server: customers can only see their own orders; worker
 
 Frontends read `VITE_API_URL` from their own `.env` (default `http://localhost:8000`).
 
+## Deploying the full app
+
+The two Vite frontends and FastAPI API can be deployed as separate Vercel projects from this repository. The C++ packing service runs as a container on a host that supports a long-running HTTP service. The API needs managed PostgreSQL in production; the local SQLite file is not durable serverless storage.
+
+### Vercel projects
+
+Create three Vercel projects connected to this GitHub repository:
+
+| Project | Root Directory | Build settings | Required environment variables |
+| --- | --- | --- | --- |
+| TOTE storefront | `tote-frontend` | Vite; `npm run build`; output `dist` | `VITE_API_URL` = deployed API URL |
+| PackWise warehouse | `packwise-frontend` | Vite; `npm run build`; output `dist` | `VITE_API_URL` = deployed API URL |
+| FastAPI | `backend` | FastAPI/Python auto-detect | `DATABASE_URL`, `PACKER_URL`, `CORS_ORIGINS`, `PACKWISE_WORKER_CODE`, `ADMIN_ACCESS_CODE` |
+
+Set `CORS_ORIGINS` on the API project to the two production frontend origins, comma-separated. Set `DATABASE_URL` to the provider's pooled PostgreSQL URL. Vercel runs FastAPI as request-based functions; do not point `PACKER_URL` at localhost. Store secrets in the Vercel dashboard, not in frontend variables. Only `VITE_API_URL` belongs in a frontend project.
+
+### C++ packing service
+
+For example, on Render create a Web Service from this repository, set the root directory to `cpp-packer-service`, choose Docker, and set the health check path to `/health`. The included Dockerfile binds to `0.0.0.0` and uses the host-provided `PORT`, as Render requires. Use the resulting public HTTPS URL as `PACKER_URL` in the FastAPI project. Another container host that supports a continuously running HTTP service can use the same Dockerfile.
+
+### Database and first deployment
+
+The API creates the current schema and seeds the sample catalogue when it starts. A new PostgreSQL database starts with the sample catalogue; it does not import the local SQLite database or its customer/order records. Add the required API secrets and production CORS origins, deploy the packing container, then deploy the API with its `DATABASE_URL` and `PACKER_URL`. Finally deploy both frontends with the API's public URL in `VITE_API_URL` and redeploy them whenever that build-time variable changes.
+
 ## 11. Project structure
 
 ```

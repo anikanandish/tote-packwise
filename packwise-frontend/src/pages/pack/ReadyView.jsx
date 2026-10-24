@@ -18,6 +18,7 @@ export function ChangeCarton({ plan, busy, error, onOverride, onRecalculate, onC
   const [pick, setPick] = useState(null)
   const [reason, setReason] = useState('')
   const current = plan.selected?.carton
+  const cartons = plan.evaluations.map((e) => e.carton)
   const options = plan.evaluations
     .filter((e) => e.status === 'feasible' && e.carton.id !== current?.id)
     .sort((a, b) => a.carton.volume_cm3 - b.carton.volume_cm3)
@@ -39,7 +40,7 @@ export function ChangeCarton({ plan, busy, error, onOverride, onRecalculate, onC
             return (
               <button key={e.carton.id} role="radio" aria-checked={pick === e.carton.id}
                 className={`choice ${pick === e.carton.id ? 'on' : ''}`} onClick={() => setPick(e.carton.id)}>
-                <span className="choice-name">{cartonTitle(e.carton)}</span>
+                <span className="choice-name">{cartonTitle(e.carton, cartons)}</span>
                 <span className="muted">{dims(e.carton.dims_cm)}{curVol ? ` · ${(e.carton.volume_cm3 / curVol).toFixed(1)}× the space` : ''}</span>
                 <span className="choice-cost">{money(e.cost?.total)}{diff != null && <small> {diff >= 0 ? '+' : '−'}{money(Math.abs(diff))}</small>}</span>
               </button>
@@ -65,15 +66,76 @@ export function ChangeCarton({ plan, busy, error, onOverride, onRecalculate, onC
   )
 }
 
+// The "next size up" box shows the items placed the way a person might drop them in without
+// the algorithm: random spots and turns on the floor, never overlapping and never outside the
+// box. Seeded by the order so the picture stays the same on every visit.
+function seededRandom(seed) {
+  let t = seed >>> 0
+  return () => {
+    t += 0x6D2B79F5
+    let r = Math.imul(t ^ (t >>> 15), 1 | t)
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r)
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+const fitsIn = (layout, L, W) => layout.every((p) => p.x >= 0 && p.y >= 0 && p.x + p.dx <= L + 1e-6 && p.y + p.dy <= W + 1e-6)
+const clash = (a, list) => list.some((q) => a.x < q.x + q.dx - 1e-6 && q.x < a.x + a.dx - 1e-6 && a.y < q.y + q.dy - 1e-6 && q.y < a.y + a.dy - 1e-6)
+
+function randomLayout(placements, dims, seed) {
+  if (!dims || !placements.length) return placements
+  const [L, W] = dims
+  const rnd = seededRandom(seed)
+  const order = [...placements].sort((a, b) => b.dx * b.dy - a.dx * a.dy)   // big items first
+  // Several full attempts; each spot is either fully random or pushed against a wall or another item.
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const out = []
+    let ok = true
+    for (const p of order) {
+      let done = false
+      for (let tries = 0; tries < 300 && !done; tries++) {
+        const turn = rnd() < 0.5
+        const dx = turn ? p.dy : p.dx, dy = turn ? p.dx : p.dy
+        if (dx > L + 1e-6 || dy > W + 1e-6) continue
+        const xs = [0, L - dx, ...out.map((q) => q.x + q.dx), ...out.map((q) => q.x - dx)]
+        const ys = [0, W - dy, ...out.map((q) => q.y + q.dy), ...out.map((q) => q.y - dy)]
+        const snap = rnd() < 0.5
+        let x = snap ? xs[Math.floor(rnd() * xs.length)] : rnd() * (L - dx)
+        let y = snap ? ys[Math.floor(rnd() * ys.length)] : rnd() * (W - dy)
+        x = Math.round(Math.min(Math.max(x, 0), L - dx) * 10) / 10
+        y = Math.round(Math.min(Math.max(y, 0), W - dy) * 10) / 10
+        const cand = { ...p, x, y, z: 0, dx, dy, rotated: turn ? !p.rotated : p.rotated }
+        if (!clash(cand, out)) { out.push(cand); done = true }
+      }
+      if (!done) { ok = false; break }
+    }
+    if (ok) {
+      const byRef = Object.fromEntries(out.map((q) => [q.unit_ref, q]))
+      return placements.map((q) => byRef[q.unit_ref])
+    }
+  }
+  // Could not scatter: use the algorithm's layout if it fits this box (as is, or turned 90°).
+  const flat = placements.map((p) => ({ ...p, z: 0 }))
+  if (fitsIn(flat, L, W)) return flat
+  const turned = flat.map((p) => ({ ...p, x: p.y, y: p.x, dx: p.dy, dy: p.dx, rotated: !p.rotated }))
+  if (fitsIn(turned, L, W)) return turned
+  return []                                   // never draw items outside the box
+}
+
 function SpaceComparison({ plan, carton, placements, colors, fragileRefs }) {
+  // Compare with the NEXT bigger carton that also fits this order (the one that would be used
+  // otherwise), not the largest one. Falls back to the baseline carton if no other one fits.
   const larger = useMemo(() => {
+    const next = plan.evaluations
+      .filter((e) => e.status === 'feasible' && e.carton.id !== carton.id && e.carton.volume_cm3 > carton.volume_cm3)
+      .sort((a, b) => a.carton.volume_cm3 - b.carton.volume_cm3)[0]?.carton
+    if (next) return next
     const baseline = plan.baseline?.carton
     const baselineEval = plan.evaluations.find((e) => e.carton.id === baseline?.id)
-    if (baseline && baseline.volume_cm3 > carton.volume_cm3 && baselineEval?.physically_feasible) return baseline
-    return plan.evaluations
-      .filter((e) => e.status === 'feasible' && e.carton.volume_cm3 > carton.volume_cm3)
-      .sort((a, b) => b.carton.volume_cm3 - a.carton.volume_cm3)[0]?.carton || null
+    return baseline && baseline.volume_cm3 > carton.volume_cm3 && baselineEval?.physically_feasible ? baseline : null
   }, [plan, carton])
+  const scattered = useMemo(() => randomLayout(placements, larger?.dims_cm, plan.id || 1),
+    [placements, larger, plan.id])
   if (!larger) return null
 
   const packedVolume = (plan.units || []).reduce((sum, unit) =>
@@ -91,17 +153,17 @@ function SpaceComparison({ plan, carton, placements, colors, fragileRefs }) {
       <div className="space-compare-head">
         <p className="eyebrow">Same order · same safe placement</p>
         <h2 id="space-compare-title">Big carton vs. optimized carton</h2>
-        <p>See the extra space the larger box ships, next to the right-size carton for this order.</p>
+        <p>See the extra space the next bigger box would ship, next to the right-size carton for this order.</p>
       </div>
       <div className="space-compare-grid">
         <article className="compare-box compare-baseline">
           <div className="compare-box-head">
-            <div><span className="compare-kicker">Larger carton</span><h3>{larger.name}</h3></div>
+            <div><span className="compare-kicker">Next size up</span><h3>{larger.name}</h3></div>
             <span className="compare-volume">{litres(larger.volume_cm3)}</span>
           </div>
           <p className="compare-dims">{size(larger.dims_cm)}</p>
           <div className="compare-scene">
-            <Carton3D carton={larger.dims_cm} frameDims={frameDims} placements={placements}
+            <Carton3D carton={larger.dims_cm} frameDims={frameDims} placements={scattered}
               fragileRefs={fragileRefs} colors={colors} className="c3d-compare" />
           </div>
           <p className="compare-caption">About {litres(largerEmpty)} of carton volume remains around the items.</p>
@@ -125,6 +187,7 @@ function SpaceComparison({ plan, carton, placements, colors, fragileRefs }) {
 }
 
 function WhyCarton({ plan }) {
+  const cartons = plan.evaluations.map((e) => e.carton)
   const rejected = plan.evaluations.filter((e) => e.status !== 'feasible' && e.carton.volume_cm3 < plan.selected.carton.volume_cm3)
   return (
     <details className="why-box">
@@ -132,7 +195,7 @@ function WhyCarton({ plan }) {
       <ul>
         {(plan.selected.why || []).map((w, i) => <li key={i}>{w}</li>)}
         {(plan.warnings || []).map((w, i) => <li key={`w${i}`} className="warnline">{w}</li>)}
-        {rejected.filter((e) => e.status !== 'inactive').map((e) => <li key={e.carton.id}><b>{cartonTitle(e.carton)}</b>: {e.reasons[0] || 'did not pass the checks'}</li>)}
+        {rejected.filter((e) => e.status !== 'inactive').map((e) => <li key={e.carton.id}><b>{cartonTitle(e.carton, cartons)}</b>: {e.reasons[0] || 'did not pass the checks'}</li>)}
         <li>Estimated packaging cost {money(plan.estimated_cost)}
           {plan.baseline?.available ? `, ${signedMoney(plan.estimated_savings)} against the ${plan.baseline.carton.name} baseline` : ''}.</li>
       </ul>
@@ -142,6 +205,7 @@ function WhyCarton({ plan }) {
 
 export default function ReadyView({ order, plan, busy, error, onStart, onChange, onRecalculate }) {
   const carton = plan.selected.carton
+  const cartons = plan.evaluations.map((e) => e.carton)
   const fragileRefs = useMemo(() => new Set(plan.units.filter((u) => u.fragile).map((u) => u.ref)), [plan])
   const colors = useMemo(() => colorsFor(plan, order), [plan, order])
   const fill = fillOf(plan)
@@ -158,7 +222,7 @@ export default function ReadyView({ order, plan, busy, error, onStart, onChange,
       <section className="ready-main">
         <div className="carton-hero">
           <div className="ch-top">
-            {boxNo(carton) && <span className="ch-no" aria-label={`Box number ${boxNo(carton)}`}>{boxNo(carton)}</span>}
+            {boxNo(carton, cartons) && <span className="ch-no" aria-label={`Box number ${boxNo(carton, cartons)}`}>{boxNo(carton, cartons)}</span>}
             <div>
               <p className="ch-label">Take box</p>
               <p className="ch-name">{carton.name}</p>
@@ -178,7 +242,7 @@ export default function ReadyView({ order, plan, busy, error, onStart, onChange,
         <div className="grab">
           <p className="grab-title">Grab</p>
           <ul>
-            <li><b>1</b> {cartonTitle(carton)}</li>
+            <li><b>1</b> {cartonTitle(carton, cartons)}</li>
             {mats.map((m) => <li key={m.code}><b>{m.estimate ? '~' : ''}{m.quantity}</b> {m.name.toLowerCase()}</li>)}
           </ul>
         </div>
@@ -202,6 +266,7 @@ export default function ReadyView({ order, plan, busy, error, onStart, onChange,
           </div>
         )}
 
+        <p className="nudge-start-hint">To fine-tune item positions, start packing first. The W A S D controls appear on each item step.</p>
         <button className="btn btn-peach btn-xl" disabled={busy} onClick={onStart} autoFocus>
           {busy ? 'Reserving carton…' : 'Start packing'}
         </button>

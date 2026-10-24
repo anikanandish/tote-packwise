@@ -160,14 +160,27 @@ export function fillOf(plan) {
 }
 
 // Shelf number of a standard warehouse carton: its position by size (1 = smallest), sent by the
-// backend as box_no. Older plans without box_no fall back to the number in the code ("STD-02" -> "2").
-export function boxNo(carton) {
+// backend as box_no. Older full plans can reconstruct the rank from their carton snapshots.
+export function boxNo(carton, cartons = []) {
   if (carton?.box_no) return String(carton.box_no)
+  // Older saved plans do not contain box_no. Rank their standard carton snapshots
+  // by the same internal-volume order as the backend, so an old plan still shows
+  // the current rack number instead of the STD code suffix.
+  if (carton?.is_predefined && cartons.length > 1) {
+    const standards = cartons.filter((c) => c?.is_predefined).sort((a, b) => {
+      const volume = (c) => c.dims_mm?.length === 3
+        ? c.dims_mm.reduce((n, side) => n * side, 1)
+        : c.volume_cm3 || 0
+      return volume(a) - volume(b) || String(a.code).localeCompare(String(b.code))
+    })
+    const index = standards.findIndex((c) => c.id === carton.id || c.code === carton.code)
+    if (index >= 0) return String(index + 1)
+  }
   const m = /^(?:BOX|STD)-0*(\d+)$/i.exec(carton?.code || '')
   return m ? m[1] : null
 }
 
-export function cartonTitle(carton) {
-  const n = boxNo(carton)
+export function cartonTitle(carton, cartons = []) {
+  const n = boxNo(carton, cartons)
   return n ? `Box ${n} · ${carton.name}` : `${carton?.name} carton`
 }

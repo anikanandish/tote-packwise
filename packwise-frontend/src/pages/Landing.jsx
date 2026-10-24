@@ -23,12 +23,13 @@ function LiveCarton() {
   }
   const placements = data.placements.map((p) => ({ ...p, unit_ref: p.id, x: p.x / 10, y: p.y / 10, z: 0, dx: p.dx / 10, dy: p.dy / 10, dz: p.dz / 10 }))
   const fragile = new Set(data.placements.filter((p) => p.fragile).map((p) => p.id))
+  const demoColors = Object.fromEntries(placements.map((p, i) => [p.unit_ref, ['#68A875', '#4D8C5E', '#85B98A', '#39744D', '#9BC99D'][i % 5]]))
   const [L, W, H] = data.carton.dims_cm
   return (
     <figure className="hero-viz">
       <div className={`hero-visual-stage${rotating ? '' : ' is-paused'}`}>
         <div className="hero-orbit" aria-hidden="true"><span /></div>
-        <Carton3D carton={[L, W, H]} placements={placements} fragileRefs={fragile} theme="dark" autoRotate={rotating} className="c3d-hero" />
+        <Carton3D carton={[L, W, H]} placements={placements} colors={demoColors} fragileRefs={fragile} theme="light" autoRotate={rotating} className="c3d-hero" />
       </div>
       <figcaption>
         <span>Live from the C++ engine</span>

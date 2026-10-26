@@ -25,6 +25,12 @@ flowchart LR
 
 The two web apps share one API. The API stores orders and inventory, then calls the C++ service for carton layouts. The simulator site is an optional standalone demo.
 
+## Deployed apps
+
+https://packwise-warehouse.vercel.app/
+https://tote-storefront.vercel.app/
+
+
 ## Quick start
 
 **Windows:** run `setup.bat` once, then `start-all.bat`. The scripts open the services in separate windows.

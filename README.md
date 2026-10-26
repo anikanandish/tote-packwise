@@ -28,6 +28,7 @@ The two web apps share one API. The API stores orders and inventory, then calls 
 ## Deployed apps
 
 https://packwise-warehouse.vercel.app/
+
 https://tote-storefront.vercel.app/
 
 
